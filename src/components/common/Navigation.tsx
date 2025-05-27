@@ -18,7 +18,7 @@ import {
   FileText, 
   FolderOpen, 
   Users, 
-  Chat,
+  MessageCircle,
   LogOut,
   Settings
 } from 'lucide-react';
@@ -35,7 +35,7 @@ const Navigation = () => {
     { href: '/assignments', label: 'Assignments', icon: FileText },
     { href: '/materials', label: 'Materials', icon: FolderOpen },
     { href: '/attendance', label: 'Attendance', icon: Users },
-    { href: '/chat', label: 'Chat', icon: Chat },
+    { href: '/chat', label: 'Chat', icon: MessageCircle },
   ];
 
   const isActive = (href: string) => location.pathname === href;

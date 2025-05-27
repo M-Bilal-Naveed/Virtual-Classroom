@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +9,7 @@ import {
   FileText, 
   FolderOpen, 
   Users, 
-  Chat,
+  MessageCircle,
   Clock,
   BookOpen,
   TrendingUp,
@@ -41,7 +40,7 @@ const Dashboard = () => {
     { title: 'Join Class', icon: Video, href: '/dashboard', color: 'bg-purple-500' },
     { title: 'View Assignments', icon: FileText, href: '/assignments', color: 'bg-blue-500' },
     { title: 'Download Materials', icon: FolderOpen, href: '/materials', color: 'bg-green-500' },
-    { title: 'Chat', icon: Chat, href: '/chat', color: 'bg-orange-500' },
+    { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
   ];
 
   return (
