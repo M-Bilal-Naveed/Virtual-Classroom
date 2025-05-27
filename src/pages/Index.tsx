@@ -1,13 +1,107 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import Login from '../components/auth/Login';
+import Dashboard from '../components/dashboard/Dashboard';
+import ClassScheduler from '../components/classes/ClassScheduler';
+import LiveClass from '../components/classes/LiveClass';
+import Assignments from '../components/assignments/Assignments';
+import Materials from '../components/materials/Materials';
+import Attendance from '../components/attendance/Attendance';
+import Chat from '../components/chat/Chat';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import Navigation from '../components/common/Navigation';
+
+const queryClient = new QueryClient();
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  return user ? <>{children}</> : <Navigate to="/login" />;
+};
+
+const AppContent = () => {
+  const { user } = useAuth();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
+        <Route path="/" element={user ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/schedule"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <ClassScheduler />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/live-class/:classId"
+          element={
+            <ProtectedRoute>
+              <LiveClass />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/assignments"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <Assignments />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/materials"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <Materials />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <Attendance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <Chat />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </div>
+  );
+};
 
 const Index = () => {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 };
 
