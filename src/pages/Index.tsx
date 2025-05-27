@@ -99,7 +99,9 @@ const Index = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppContent />
+        <Router>
+          <AppContent />
+        </Router>
       </AuthProvider>
     </QueryClientProvider>
   );
