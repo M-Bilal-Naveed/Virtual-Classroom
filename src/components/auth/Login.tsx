@@ -7,47 +7,145 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { GraduationCap, Users, BookOpen } from 'lucide-react';
+import { GraduationCap, Users, BookOpen, AlertCircle } from 'lucide-react';
+
+interface FormErrors {
+  name?: string;
+  email?: string;
+  password?: string;
+  role?: string;
+}
 
 const Login = () => {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [signupForm, setSignupForm] = useState({ email: '', password: '', name: '', role: 'student' as 'admin' | 'student' });
   const [activeTab, setActiveTab] = useState('login');
+  const [loginErrors, setLoginErrors] = useState<FormErrors>({});
+  const [signupErrors, setSignupErrors] = useState<FormErrors>({});
   const { login, signup, loading } = useAuth();
   const { toast } = useToast();
 
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateLoginForm = () => {
+    const errors: FormErrors = {};
+    
+    if (!loginForm.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!validateEmail(loginForm.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (!loginForm.password.trim()) {
+      errors.password = 'Password is required';
+    } else if (loginForm.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
+    
+    setLoginErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateSignupForm = () => {
+    const errors: FormErrors = {};
+    
+    if (!signupForm.name.trim()) {
+      errors.name = 'Full name is required';
+    } else if (signupForm.name.trim().length < 2) {
+      errors.name = 'Name must be at least 2 characters';
+    }
+    
+    if (!signupForm.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!validateEmail(signupForm.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (!signupForm.password.trim()) {
+      errors.password = 'Password is required';
+    } else if (signupForm.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
+    }
+    
+    setSignupErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateLoginForm()) {
+      return;
+    }
+
     try {
       await login(loginForm.email, loginForm.password);
       toast({
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
-        description: "Please check your credentials and try again.",
+        description: error.message || "Please check your credentials and try again.",
         variant: "destructive",
       });
+      
+      // Set specific error based on error message
+      if (error.message.includes('user-not-found') || error.message.includes('wrong-password')) {
+        setLoginErrors({ email: 'Invalid email or password' });
+      } else if (error.message.includes('invalid-email')) {
+        setLoginErrors({ email: 'Invalid email format' });
+      } else {
+        setLoginErrors({ password: 'Login failed. Please try again.' });
+      }
     }
   };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateSignupForm()) {
+      return;
+    }
+
     try {
       await signup(signupForm.email, signupForm.password, signupForm.name, signupForm.role);
       toast({
         title: "Account created!",
         description: "Welcome to Virtual Classroom.",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Signup error:', error);
       toast({
         title: "Signup failed",
-        description: "Please try again with different credentials.",
+        description: error.message || "Please try again with different credentials.",
         variant: "destructive",
       });
+      
+      // Set specific error based on error message
+      if (error.message.includes('email-already-in-use')) {
+        setSignupErrors({ email: 'This email is already registered' });
+      } else if (error.message.includes('weak-password')) {
+        setSignupErrors({ password: 'Password is too weak' });
+      } else if (error.message.includes('invalid-email')) {
+        setSignupErrors({ email: 'Invalid email format' });
+      } else {
+        setSignupErrors({ email: 'Signup failed. Please try again.' });
+      }
     }
+  };
+
+  const clearLoginErrors = (field: string) => {
+    setLoginErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const clearSignupErrors = (field: string) => {
+    setSignupErrors(prev => ({ ...prev, [field]: undefined }));
   };
 
   return (
@@ -89,20 +187,40 @@ const Login = () => {
                       type="email"
                       placeholder="Email"
                       value={loginForm.email}
-                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      onChange={(e) => {
+                        setLoginForm({ ...loginForm, email: e.target.value });
+                        clearLoginErrors('email');
+                      }}
+                      className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
+                        loginErrors.email ? 'border-red-500' : ''
+                      }`}
                     />
+                    {loginErrors.email && (
+                      <div className="flex items-center gap-1 text-red-400 text-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        {loginErrors.email}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Input
                       type="password"
                       placeholder="Password"
                       value={loginForm.password}
-                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      onChange={(e) => {
+                        setLoginForm({ ...loginForm, password: e.target.value });
+                        clearLoginErrors('password');
+                      }}
+                      className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
+                        loginErrors.password ? 'border-red-500' : ''
+                      }`}
                     />
+                    {loginErrors.password && (
+                      <div className="flex items-center gap-1 text-red-400 text-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        {loginErrors.password}
+                      </div>
+                    )}
                   </div>
                   <Button 
                     type="submit" 
@@ -124,30 +242,60 @@ const Login = () => {
                       type="text"
                       placeholder="Full Name"
                       value={signupForm.name}
-                      onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      onChange={(e) => {
+                        setSignupForm({ ...signupForm, name: e.target.value });
+                        clearSignupErrors('name');
+                      }}
+                      className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
+                        signupErrors.name ? 'border-red-500' : ''
+                      }`}
                     />
+                    {signupErrors.name && (
+                      <div className="flex items-center gap-1 text-red-400 text-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        {signupErrors.name}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Input
                       type="email"
                       placeholder="Email"
                       value={signupForm.email}
-                      onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      onChange={(e) => {
+                        setSignupForm({ ...signupForm, email: e.target.value });
+                        clearSignupErrors('email');
+                      }}
+                      className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
+                        signupErrors.email ? 'border-red-500' : ''
+                      }`}
                     />
+                    {signupErrors.email && (
+                      <div className="flex items-center gap-1 text-red-400 text-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        {signupErrors.email}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Input
                       type="password"
-                      placeholder="Password"
+                      placeholder="Password (minimum 6 characters)"
                       value={signupForm.password}
-                      onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                      required
-                      className="bg-white/10 border-white/20 text-white placeholder:text-white/60"
+                      onChange={(e) => {
+                        setSignupForm({ ...signupForm, password: e.target.value });
+                        clearSignupErrors('password');
+                      }}
+                      className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
+                        signupErrors.password ? 'border-red-500' : ''
+                      }`}
                     />
+                    {signupErrors.password && (
+                      <div className="flex items-center gap-1 text-red-400 text-sm">
+                        <AlertCircle className="h-4 w-4" />
+                        {signupErrors.password}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Select value={signupForm.role} onValueChange={(value: 'admin' | 'student') => setSignupForm({ ...signupForm, role: value })}>
@@ -180,6 +328,24 @@ const Login = () => {
                 </form>
               </TabsContent>
             </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* System Guide */}
+        <Card className="mt-6 backdrop-blur-sm bg-white/10 border-white/20">
+          <CardContent className="p-4">
+            <h3 className="text-white font-semibold mb-2">🚀 System Guide</h3>
+            <div className="text-white/80 text-sm space-y-2">
+              <div>
+                <strong className="text-yellow-300">Admin/Teacher:</strong> Schedule classes, upload materials, create assignments, view attendance
+              </div>
+              <div>
+                <strong className="text-green-300">Student:</strong> Join classes, submit assignments, download materials, participate in chat
+              </div>
+              <div className="mt-3 p-2 bg-white/5 rounded">
+                <strong className="text-blue-300">Quick Demo:</strong> Use 'admin@test.com' with any password for instant admin access
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

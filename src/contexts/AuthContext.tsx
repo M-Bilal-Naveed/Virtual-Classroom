@@ -1,8 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, authService, UserProfile } from '../services/authService';
+import { authService, UserProfile } from '../services/authService';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -27,25 +25,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          // Get user profile from Firestore
-          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            const userProfile = { ...userDoc.data(), id: firebaseUser.uid } as UserProfile;
-            setUser(userProfile);
-          }
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-        }
-      } else {
-        setUser(null);
+    // Check for existing user session
+    const currentUser = localStorage.getItem('virtualClassroom_currentUser');
+    if (currentUser) {
+      try {
+        setUser(JSON.parse(currentUser));
+      } catch (error) {
+        console.error('Error loading user session:', error);
+        localStorage.removeItem('virtualClassroom_currentUser');
       }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+    }
+    setLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -53,7 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const userProfile = await authService.signIn(email, password);
       setUser(userProfile);
+      localStorage.setItem('virtualClassroom_currentUser', JSON.stringify(userProfile));
     } catch (error: any) {
+      console.error('Login error:', error);
       throw new Error(error.message);
     } finally {
       setLoading(false);
@@ -65,7 +57,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const userProfile = await authService.signUp(email, password, name, role);
       setUser(userProfile);
+      localStorage.setItem('virtualClassroom_currentUser', JSON.stringify(userProfile));
     } catch (error: any) {
+      console.error('Signup error:', error);
       throw new Error(error.message);
     } finally {
       setLoading(false);
@@ -76,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authService.signOut();
       setUser(null);
+      localStorage.removeItem('virtualClassroom_currentUser');
     } catch (error) {
       console.error('Logout error:', error);
     }
