@@ -1,301 +1,281 @@
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Video, 
-  VideoOff, 
-  Mic, 
-  MicOff, 
-  Phone, 
-  Users, 
-  MessageCircle, 
-  Send,
-  Monitor,
-  Settings,
+import { persistentStorage } from '../../utils/persistentStorage';
+import { attendanceService } from '../../services/attendanceService';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  MessageCircle,
+  Users,
   Hand,
-  FileText
+  Share,
+  PhoneOff,
+  ExternalLink,
+  Clock
 } from 'lucide-react';
-
-interface ChatMessage {
-  id: string;
-  user: string;
-  message: string;
-  timestamp: Date;
-  isAdmin: boolean;
-}
-
-interface Participant {
-  id: string;
-  name: string;
-  isAdmin: boolean;
-  video: boolean;
-  audio: boolean;
-  handRaised: boolean;
-}
 
 const LiveClass = () => {
   const { classId } = useParams();
   const { user } = useAuth();
-  const navigate = useNavigate();
-  
-  const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isAudioOn, setIsAudioOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [handRaised, setHandRaised] = useState(false);
+  const { toast } = useToast();
+  const [classInfo, setClassInfo] = useState<any>(null);
+  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [isAudioOn, setIsAudioOn] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
-  const [showChat, setShowChat] = useState(true);
-  const [attendanceMarked, setAttendanceMarked] = useState(false);
-
-  const [participants] = useState<Participant[]>([
-    { id: '1', name: 'Dr. Smith', isAdmin: true, video: true, audio: true, handRaised: false },
-    { id: '2', name: 'Alice Johnson', isAdmin: false, video: true, audio: false, handRaised: false },
-    { id: '3', name: 'Bob Wilson', isAdmin: false, video: false, audio: true, handRaised: true },
-    { id: '4', name: 'Carol Davis', isAdmin: false, video: true, audio: true, handRaised: false },
-  ]);
-
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      user: 'Dr. Smith',
-      message: 'Welcome to today\'s Mathematics class!',
-      timestamp: new Date(Date.now() - 300000),
-      isAdmin: true
-    },
-    {
-      id: '2',
-      user: 'Alice Johnson',
-      message: 'Thank you, excited to learn today!',
-      timestamp: new Date(Date.now() - 240000),
-      isAdmin: false
-    },
-    {
-      id: '3',
-      user: 'Dr. Smith',
-      message: 'Today we\'ll be covering derivatives. Please make sure you have your notebooks ready.',
-      timestamp: new Date(Date.now() - 180000),
-      isAdmin: true
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [participants, setParticipants] = useState<any[]>([]);
 
   useEffect(() => {
-    // Auto-mark attendance when joining
-    if (!attendanceMarked) {
-      setTimeout(() => {
-        setAttendanceMarked(true);
-      }, 2000);
+    // Load class information
+    const data = persistentStorage.getData();
+    const foundClass = data.scheduledClasses.find(cls => cls.id === classId);
+    
+    if (foundClass) {
+      setClassInfo(foundClass);
+      
+      // Automatically mark attendance when joining class
+      if (user) {
+        attendanceService.markAttendance(
+          user.id,
+          user.name,
+          foundClass.id,
+          foundClass.title
+        );
+        
+        toast({
+          title: "Joined class successfully",
+          description: "Your attendance has been automatically recorded.",
+        });
+      }
+      
+      // Simulate participants
+      setParticipants([
+        {
+          id: user?.id,
+          name: user?.name,
+          role: user?.role,
+          isVideoOn: false,
+          isAudioOn: false,
+          isHandRaised: false
+        }
+      ]);
     }
-  }, [attendanceMarked]);
 
-  const handleSendMessage = () => {
+    // Load chat messages
+    setChatMessages(data.chatMessages || []);
+  }, [classId, user]);
+
+  const sendMessage = () => {
     if (chatMessage.trim()) {
-      const newMessage: ChatMessage = {
+      const newMessage = {
         id: Date.now().toString(),
-        user: user?.name || 'Anonymous',
+        userId: user?.id,
+        userName: user?.name,
+        userAvatar: user?.avatar,
         message: chatMessage,
         timestamp: new Date(),
-        isAdmin: user?.role === 'admin'
+        isAdmin: user?.role === 'admin',
+        type: 'text'
       };
-      setChatMessages(prev => [...prev, newMessage]);
+      
+      const data = persistentStorage.getData();
+      const updatedMessages = [...data.chatMessages, newMessage];
+      persistentStorage.updateChatMessages(updatedMessages);
+      setChatMessages(updatedMessages);
       setChatMessage('');
     }
   };
 
-  const handleLeaveClass = () => {
-    navigate('/dashboard');
+  const openInGoogleMeet = () => {
+    if (classInfo?.meetLink) {
+      window.open(classInfo.meetLink, '_blank');
+    }
   };
 
-  const openGoogleMeet = () => {
-    // Simulate opening Google Meet in a new window
-    const meetLink = `https://meet.google.com/classroom-${classId}`;
-    window.open(meetLink, '_blank');
-  };
+  if (!classInfo) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <h2 className="text-xl font-semibold mb-4">Class not found</h2>
+            <p className="text-gray-600">The requested class could not be found.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold">Mathematics - Calculus</h1>
-            <Badge variant="secondary" className="bg-green-600 text-white">
-              Live
-            </Badge>
-            {attendanceMarked && (
-              <Badge variant="secondary" className="bg-blue-600 text-white">
-                Attendance Marked ✓
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-sm text-gray-400">
-              <Users className="h-4 w-4" />
-              <span>{participants.length} participants</span>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Class Header */}
+      <Card className="mb-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl">{classInfo.title}</CardTitle>
+              <p className="text-blue-100 mt-2">{classInfo.description}</p>
+              <div className="flex items-center space-x-4 mt-2">
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-4 w-4" />
+                  <span>{classInfo.time}</span>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white">
+                  Live
+                </Badge>
+              </div>
             </div>
-            <Button variant="outline" size="sm" onClick={openGoogleMeet}>
-              <Video className="h-4 w-4 mr-2" />
+            <Button 
+              onClick={openInGoogleMeet}
+              className="bg-white text-blue-600 hover:bg-gray-100"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
               Open in Google Meet
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleLeaveClass}>
-              <Phone className="h-4 w-4 mr-2" />
-              Leave
-            </Button>
           </div>
-        </div>
-      </div>
+        </CardHeader>
+      </Card>
 
-      <div className="flex h-[calc(100vh-80px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main Video Area */}
-        <div className="flex-1 relative">
-          {/* Simulated Video Feed */}
-          <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="w-48 h-48 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-6xl font-bold text-white">DS</span>
-              </div>
-              <h3 className="text-2xl font-bold mb-2">Dr. Smith</h3>
-              <p className="text-gray-400">Instructor • Screen Sharing</p>
-            </div>
-          </div>
-
-          {/* Video Controls */}
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-            <div className="flex items-center space-x-4 bg-gray-800/90 backdrop-blur-sm rounded-lg px-6 py-3">
-              <Button
-                size="sm"
-                variant={isAudioOn ? "default" : "destructive"}
-                onClick={() => setIsAudioOn(!isAudioOn)}
-              >
-                {isAudioOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-              </Button>
-              <Button
-                size="sm"
-                variant={isVideoOn ? "default" : "destructive"}
-                onClick={() => setIsVideoOn(!isVideoOn)}
-              >
-                {isVideoOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
-              </Button>
-              <Button
-                size="sm"
-                variant={isScreenSharing ? "secondary" : "outline"}
-                onClick={() => setIsScreenSharing(!isScreenSharing)}
-              >
-                <Monitor className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant={handRaised ? "secondary" : "outline"}
-                onClick={() => setHandRaised(!handRaised)}
-              >
-                <Hand className="h-4 w-4" />
-              </Button>
-              <Button size="sm" variant="outline">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Participants Grid */}
-          <div className="absolute top-4 right-4 w-64">
-            <div className="grid grid-cols-2 gap-2">
-              {participants.slice(0, 4).map((participant) => (
-                <div key={participant.id} className="relative">
-                  <div className="w-full h-24 bg-gray-700 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-1">
-                        <span className="text-xs font-bold text-white">
-                          {participant.name.charAt(0)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-300 truncate">{participant.name}</p>
-                    </div>
-                  </div>
-                  {participant.handRaised && (
-                    <div className="absolute top-1 right-1">
-                      <Hand className="h-4 w-4 text-yellow-400" />
-                    </div>
-                  )}
-                  <div className="absolute bottom-1 left-1 flex space-x-1">
-                    {!participant.audio && (
-                      <MicOff className="h-3 w-3 text-red-400" />
-                    )}
-                    {!participant.video && (
-                      <VideoOff className="h-3 w-3 text-red-400" />
-                    )}
-                  </div>
+        <div className="lg:col-span-3">
+          <Card className="h-96">
+            <CardContent className="p-0 h-full bg-gray-900 rounded-lg overflow-hidden relative">
+              {/* Video Placeholder */}
+              <div className="h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                <div className="text-center text-white">
+                  <Video className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <h3 className="text-xl font-semibold mb-2">Class Video Stream</h3>
+                  <p className="text-gray-400">Click "Open in Google Meet" for actual video conferencing</p>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+
+              {/* Controls Overlay */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                <div className="flex items-center space-x-4 bg-black/50 backdrop-blur-sm rounded-full px-6 py-3">
+                  <Button
+                    size="sm"
+                    variant={isVideoOn ? "default" : "secondary"}
+                    onClick={() => setIsVideoOn(!isVideoOn)}
+                    className="rounded-full"
+                  >
+                    {isVideoOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant={isAudioOn ? "default" : "secondary"}
+                    onClick={() => setIsAudioOn(!isAudioOn)}
+                    className="rounded-full"
+                  >
+                    {isAudioOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                  </Button>
+                  
+                  <Button
+                    size="sm"
+                    variant={isHandRaised ? "default" : "secondary"}
+                    onClick={() => setIsHandRaised(!isHandRaised)}
+                    className="rounded-full"
+                  >
+                    <Hand className="h-4 w-4" />
+                  </Button>
+                  
+                  {user?.role === 'admin' && (
+                    <Button size="sm" variant="secondary" className="rounded-full">
+                      <Share className="h-4 w-4" />
+                    </Button>
+                  )}
+                  
+                  <Button size="sm" variant="destructive" className="rounded-full">
+                    <PhoneOff className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Chat Sidebar */}
-        {showChat && (
-          <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
-            <div className="p-4 border-b border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold flex items-center space-x-2">
-                  <MessageCircle className="h-4 w-4" />
-                  <span>Chat</span>
-                </h3>
-                <Button size="sm" variant="ghost" onClick={() => setShowChat(false)}>
-                  ×
-                </Button>
-              </div>
-            </div>
-            
-            <ScrollArea className="flex-1 p-4">
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Participants */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Users className="h-5 w-5" />
+                <span>Participants ({participants.length})</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-3">
-                {chatMessages.map((message) => (
-                  <div key={message.id} className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <span className={`text-xs font-medium ${
-                        message.isAdmin ? 'text-purple-400' : 'text-blue-400'
-                      }`}>
-                        {message.user}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {message.timestamp.toLocaleTimeString()}
+                {participants.map((participant) => (
+                  <div key={participant.id} className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-blue-600">
+                        {participant.name?.charAt(0)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-300">{message.message}</p>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{participant.name}</p>
+                      <p className="text-xs text-gray-500">{participant.role}</p>
+                    </div>
+                    {participant.isHandRaised && (
+                      <Hand className="h-4 w-4 text-orange-500" />
+                    )}
                   </div>
                 ))}
               </div>
-            </ScrollArea>
-            
-            <div className="p-4 border-t border-gray-700">
+            </CardContent>
+          </Card>
+
+          {/* Chat */}
+          <Card className="h-80">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <MessageCircle className="h-5 w-5" />
+                <span>Chat</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col h-60">
+              <div className="flex-1 overflow-y-auto space-y-3 mb-4">
+                {chatMessages.slice(-10).map((msg) => (
+                  <div key={msg.id} className="text-sm">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <span className={`font-medium ${msg.isAdmin ? 'text-purple-600' : 'text-gray-700'}`}>
+                        {msg.userName}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-gray-800">{msg.message}</p>
+                  </div>
+                ))}
+              </div>
               <div className="flex space-x-2">
                 <Input
                   placeholder="Type a message..."
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="bg-gray-700 border-gray-600 text-white"
+                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                  className="flex-1"
                 />
-                <Button size="sm" onClick={handleSendMessage}>
-                  <Send className="h-4 w-4" />
+                <Button size="sm" onClick={sendMessage}>
+                  Send
                 </Button>
               </div>
-            </div>
-          </div>
-        )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-
-      {/* Show Chat Button when hidden */}
-      {!showChat && (
-        <Button
-          className="fixed right-4 top-1/2 transform -translate-y-1/2"
-          onClick={() => setShowChat(true)}
-        >
-          <MessageCircle className="h-4 w-4" />
-        </Button>
-      )}
     </div>
   );
 };

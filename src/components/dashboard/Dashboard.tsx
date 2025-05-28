@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../../contexts/AuthContext';
 import { persistentStorage } from '../../utils/persistentStorage';
+import { attendanceService } from '../../services/attendanceService';
 import { 
   Calendar, 
   Video, 
@@ -15,13 +16,17 @@ import {
   Clock,
   BookOpen,
   TrendingUp,
-  Bell
+  Bell,
+  Download,
+  Trash2,
+  Eye
 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
+  const [recentMaterials, setRecentMaterials] = useState<any[]>([]);
   const [statistics, setStatistics] = useState({
     totalClasses: 0,
     totalAssignments: 0,
@@ -74,6 +79,13 @@ const Dashboard = () => {
       
       setRecentAssignments(recent);
 
+      // Get recent materials (last 5)
+      const materials = data.materials
+        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
+        .slice(0, 3);
+      
+      setRecentMaterials(materials);
+
       // Update statistics
       setStatistics({
         totalClasses: data.scheduledClasses.length,
@@ -89,6 +101,22 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [user?.id]);
 
+  const handleDeleteMaterial = (materialId: string) => {
+    const data = persistentStorage.getData();
+    const updatedMaterials = data.materials.filter(m => m.id !== materialId);
+    persistentStorage.updateMaterials(updatedMaterials);
+    setRecentMaterials(prev => prev.filter(m => m.id !== materialId));
+  };
+
+  const handleDownloadAttendance = async () => {
+    try {
+      const records = await attendanceService.getAllAttendance();
+      attendanceService.downloadAttendanceSheet(records, 'all_attendance');
+    } catch (error) {
+      console.error('Error downloading attendance:', error);
+    }
+  };
+
   const quickActions = user?.role === 'admin' ? [
     { title: 'Schedule Class', icon: Calendar, href: '/schedule', color: 'bg-purple-500' },
     { title: 'Upload Materials', icon: FolderOpen, href: '/materials', color: 'bg-blue-500' },
@@ -100,6 +128,18 @@ const Dashboard = () => {
     { title: 'Download Materials', icon: FolderOpen, href: '/materials', color: 'bg-green-500' },
     { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
   ];
+
+  const getFileIcon = (fileType: string) => {
+    switch (fileType?.toLowerCase()) {
+      case 'pdf':
+        return <FileText className="h-5 w-5 text-red-500" />;
+      case 'video':
+      case 'mp4':
+        return <Video className="h-5 w-5 text-purple-500" />;
+      default:
+        return <FileText className="h-5 w-5 text-gray-500" />;
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -158,7 +198,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Upcoming Classes */}
         <Card className="bg-gradient-to-br from-white to-blue-50">
           <CardHeader>
@@ -255,10 +295,70 @@ const Dashboard = () => {
             </Link>
           </CardContent>
         </Card>
+
+        {/* Recent Materials */}
+        <Card className="bg-gradient-to-br from-white to-purple-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <FolderOpen className="h-5 w-5 text-purple-600" />
+              <span>Recent Materials</span>
+            </CardTitle>
+            <CardDescription>Recently uploaded course materials</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentMaterials.length > 0 ? (
+                recentMaterials.map((material) => (
+                  <div key={material.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        {getFileIcon(material.fileType)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-900 truncate">{material.title}</h4>
+                        <p className="text-sm text-gray-600">{material.fileSize}</p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      {material.webViewLink && (
+                        <Button size="sm" variant="ghost" onClick={() => window.open(material.webViewLink, '_blank')}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => window.open(material.downloadUrl, '_blank')}>
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      {user?.role === 'admin' && (
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => handleDeleteMaterial(material.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <FolderOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No materials uploaded yet</p>
+                </div>
+              )}
+            </div>
+            <Link to="/materials">
+              <Button variant="outline" className="w-full mt-4">
+                View All Materials
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Statistics Cards */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -303,6 +403,29 @@ const Dashboard = () => {
             <div className="mt-4 flex items-center space-x-2">
               <TrendingUp className="h-4 w-4 text-green-200" />
               <span className="text-sm text-green-100">Average rate</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-orange-100">Download</p>
+                <p className="text-xl font-bold">Attendance</p>
+              </div>
+              <Download className="h-12 w-12 text-orange-200" />
+            </div>
+            <div className="mt-4">
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="text-orange-100 hover:text-white hover:bg-orange-400/20"
+                onClick={handleDownloadAttendance}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download Sheet
+              </Button>
             </div>
           </CardContent>
         </Card>

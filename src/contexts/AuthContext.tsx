@@ -1,16 +1,11 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: 'admin' | 'student';
-  avatar?: string;
-}
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, authService, UserProfile } from '../services/authService';
 
 interface AuthContextType {
-  user: User | null;
+  user: UserProfile | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string, role: 'admin' | 'student') => Promise<void>;
   logout: () => void;
@@ -28,37 +23,38 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem('virtualClassroomUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          // Get user profile from Firestore
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          if (userDoc.exists()) {
+            const userProfile = { ...userDoc.data(), id: firebaseUser.uid } as UserProfile;
+            setUser(userProfile);
+          }
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock user data based on email
-      const mockUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        email,
-        name: email.includes('admin') ? 'Admin User' : 'Student User',
-        role: email.includes('admin') ? 'admin' : 'student',
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`
-      };
-      
-      setUser(mockUser);
-      localStorage.setItem('virtualClassroomUser', JSON.stringify(mockUser));
-    } catch (error) {
-      throw new Error('Login failed');
+      const userProfile = await authService.signIn(email, password);
+      setUser(userProfile);
+    } catch (error: any) {
+      throw new Error(error.message);
     } finally {
       setLoading(false);
     }
@@ -67,29 +63,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, name: string, role: 'admin' | 'student') => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newUser: User = {
-        id: Math.random().toString(36).substr(2, 9),
-        email,
-        name,
-        role,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`
-      };
-      
-      setUser(newUser);
-      localStorage.setItem('virtualClassroomUser', JSON.stringify(newUser));
-    } catch (error) {
-      throw new Error('Signup failed');
+      const userProfile = await authService.signUp(email, password, name, role);
+      setUser(userProfile);
+    } catch (error: any) {
+      throw new Error(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('virtualClassroomUser');
+  const logout = async () => {
+    try {
+      await authService.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   return (
