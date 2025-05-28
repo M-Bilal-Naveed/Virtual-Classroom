@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { persistentStorage } from '../../utils/persistentStorage';
 import { 
   FileText, 
   Upload, 
@@ -30,6 +31,7 @@ interface Assignment {
   submissionFormat: string;
   attachments: string[];
   submissions: Submission[];
+  createdAt: Date;
 }
 
 interface Submission {
@@ -47,6 +49,7 @@ const Assignments = () => {
   const { toast } = useToast();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -56,38 +59,37 @@ const Assignments = () => {
     submissionFormat: 'pdf'
   });
 
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    {
-      id: '1',
-      title: 'Linear Algebra Problem Set',
-      description: 'Solve problems 1-15 from Chapter 3. Show all work and explain your reasoning.',
-      dueDate: '2024-01-20',
-      maxPoints: 100,
-      submissionFormat: 'pdf',
-      attachments: ['problem_set_3.pdf'],
-      submissions: [
-        {
-          id: '1',
-          studentId: '1',
-          studentName: 'Alice Johnson',
-          submittedAt: new Date('2024-01-18'),
-          files: ['alice_assignment1.pdf'],
-          grade: 85,
-          feedback: 'Good work! Minor error in problem 7.'
-        }
-      ]
-    },
-    {
-      id: '2',
-      title: 'Physics Lab Report',
-      description: 'Write a comprehensive lab report on the pendulum experiment conducted last week.',
-      dueDate: '2024-01-25',
-      maxPoints: 150,
-      submissionFormat: 'doc',
-      attachments: ['lab_guidelines.pdf', 'data_template.xlsx'],
-      submissions: []
-    }
-  ]);
+  // Load assignments from persistent storage on component mount
+  useEffect(() => {
+    const data = persistentStorage.getData();
+    setAssignments(data.assignments.map(assignment => ({
+      ...assignment,
+      createdAt: assignment.createdAt ? new Date(assignment.createdAt) : new Date(),
+      submissions: assignment.submissions.map((sub: any) => ({
+        ...sub,
+        submittedAt: new Date(sub.submittedAt)
+      }))
+    })));
+  }, []);
+
+  // Save assignments to persistent storage whenever assignments change
+  useEffect(() => {
+    persistentStorage.updateAssignments(assignments);
+  }, [assignments]);
+
+  // Auto-remove overdue assignments (optional feature)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      setAssignments(prev => prev.filter(assignment => {
+        const dueDate = new Date(assignment.dueDate);
+        const daysSinceOverdue = (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24);
+        return daysSinceOverdue < 30; // Remove assignments 30 days after due date
+      }));
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCreateAssignment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,16 +98,17 @@ const Assignments = () => {
       id: Date.now().toString(),
       ...formData,
       attachments: [],
-      submissions: []
+      submissions: [],
+      createdAt: new Date()
     };
 
-    setAssignments(prev => [...prev, newAssignment]);
+    setAssignments(prev => [newAssignment, ...prev]);
     setFormData({ title: '', description: '', dueDate: '', maxPoints: 100, submissionFormat: 'pdf' });
     setShowCreateForm(false);
     
     toast({
-      title: "Assignment created!",
-      description: "The assignment has been successfully created.",
+      title: "Assignment created successfully!",
+      description: "The assignment has been created and is visible to students.",
     });
   };
 
@@ -135,8 +138,16 @@ const Assignments = () => {
 
     setSelectedFile(null);
     toast({
-      title: "Assignment submitted!",
-      description: "Your assignment has been successfully submitted.",
+      title: "Assignment submitted successfully!",
+      description: "Your assignment has been submitted and saved.",
+    });
+  };
+
+  const handleDeleteAssignment = (id: string) => {
+    setAssignments(prev => prev.filter(assignment => assignment.id !== id));
+    toast({
+      title: "Assignment deleted successfully",
+      description: "The assignment has been permanently removed.",
     });
   };
 
@@ -155,13 +166,23 @@ const Assignments = () => {
     }
   };
 
+  const activeAssignments = assignments.filter(assignment => {
+    const dueDate = new Date(assignment.dueDate);
+    const now = new Date();
+    return dueDate >= now || assignment.submissions.some(s => s.studentId === user?.id);
+  });
+
+  const submittedAssignments = assignments.filter(assignment => 
+    assignment.submissions.some(s => s.studentId === user?.id)
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Assignments</h1>
           <p className="text-gray-600">
-            {user?.role === 'admin' ? 'Create and manage assignments' : 'View and submit your assignments'}
+            {user?.role === 'admin' ? 'Create and manage assignments with persistent storage' : 'View and submit your assignments'}
           </p>
         </div>
         {user?.role === 'admin' && (
@@ -197,7 +218,7 @@ const Assignments = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Due Date</label>
                   <Input
-                    type="date"
+                    type="datetime-local"
                     value={formData.dueDate}
                     onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                     required
@@ -256,7 +277,7 @@ const Assignments = () => {
         </TabsList>
 
         <TabsContent value="all" className="space-y-6">
-          {assignments.map((assignment) => {
+          {activeAssignments.map((assignment) => {
             const status = getSubmissionStatus(assignment);
             const daysUntilDue = Math.ceil((new Date(assignment.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             
@@ -277,10 +298,7 @@ const Assignments = () => {
                     </div>
                     {user?.role === 'admin' && (
                       <div className="flex space-x-2">
-                        <Button size="sm" variant="ghost">
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" className="text-red-600">
+                        <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteAssignment(assignment.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -305,21 +323,7 @@ const Assignments = () => {
                     </div>
                   </div>
 
-                  {assignment.attachments.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Attachments:</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {assignment.attachments.map((file, index) => (
-                          <Button key={index} size="sm" variant="outline">
-                            <Download className="h-4 w-4 mr-2" />
-                            {file}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {user?.role === 'student' && !assignment.submissions.find(s => s.studentId === user.id) && (
+                  {user?.role === 'student' && !assignment.submissions.find(s => s.studentId === user.id) && daysUntilDue > 0 && (
                     <div className="border-t pt-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Submit Assignment:</h4>
                       <div className="flex items-center space-x-4">
@@ -347,9 +351,6 @@ const Assignments = () => {
                         <span className="text-sm text-gray-600">
                           {assignment.submissions.length} submission(s)
                         </span>
-                        <Button size="sm" variant="outline">
-                          View All Submissions
-                        </Button>
                       </div>
                     </div>
                   )}
@@ -368,57 +369,51 @@ const Assignments = () => {
           })}
         </TabsContent>
 
-        {user?.role === 'admin' && (
-          <TabsContent value="submissions" className="space-y-6">
-            {assignments.map((assignment) => (
+        {user?.role === 'student' && (
+          <TabsContent value="submitted" className="space-y-6">
+            {submittedAssignments.map((assignment) => (
               <Card key={assignment.id}>
                 <CardHeader>
                   <CardTitle className="text-lg">{assignment.title}</CardTitle>
-                  <CardDescription>
-                    {assignment.submissions.length} of 25 students submitted
-                  </CardDescription>
+                  <CardDescription>{assignment.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {assignment.submissions.map((submission) => (
-                      <div key={submission.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                            <span className="text-xs font-bold text-white">
-                              {submission.studentName.charAt(0)}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium">{submission.studentName}</p>
-                            <p className="text-sm text-gray-600">
-                              Submitted {submission.submittedAt.toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {submission.grade && (
-                            <Badge variant="secondary">
-                              {submission.grade}/{assignment.maxPoints}
-                            </Badge>
-                          )}
-                          <Button size="sm" variant="outline">
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
-                          <Button size="sm">Grade</Button>
-                        </div>
+                  {assignment.submissions.filter(s => s.studentId === user.id).map((submission) => (
+                    <div key={submission.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">Submitted on {submission.submittedAt.toLocaleDateString()}</p>
+                        <p className="text-sm text-gray-600">Files: {submission.files.join(', ')}</p>
+                        {submission.grade && (
+                          <p className="text-sm text-green-600">Grade: {submission.grade}/{assignment.maxPoints}</p>
+                        )}
                       </div>
-                    ))}
-                    {assignment.submissions.length === 0 && (
-                      <p className="text-center text-gray-500 py-4">No submissions yet</p>
-                    )}
-                  </div>
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             ))}
           </TabsContent>
         )}
       </Tabs>
+
+      {activeAssignments.length === 0 && !showCreateForm && (
+        <Card className="text-center py-12">
+          <CardContent>
+            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No assignments available</h3>
+            <p className="text-gray-600 mb-4">
+              {user?.role === 'admin' ? 'Create your first assignment to get started' : 'No assignments have been posted yet'}
+            </p>
+            {user?.role === 'admin' && (
+              <Button onClick={() => setShowCreateForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create First Assignment
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

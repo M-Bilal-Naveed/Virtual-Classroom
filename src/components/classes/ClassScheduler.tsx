@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { persistentStorage } from '../../utils/persistentStorage';
 import { Calendar, Clock, Users, Video, Plus, Edit2, Trash2 } from 'lucide-react';
 
 interface ScheduledClass {
@@ -33,28 +34,18 @@ const ClassScheduler = () => {
     duration: '60'
   });
 
-  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([
-    {
-      id: '1',
-      title: 'Mathematics - Calculus',
-      description: 'Introduction to limits and derivatives',
-      date: '2024-01-15',
-      time: '10:00',
-      duration: '60',
-      meetLink: 'https://meet.google.com/abc-def-ghi',
-      students: ['student1', 'student2', 'student3']
-    },
-    {
-      id: '2',
-      title: 'Physics - Mechanics',
-      description: 'Newton\'s laws of motion',
-      date: '2024-01-16',
-      time: '14:00',
-      duration: '90',
-      meetLink: 'https://meet.google.com/xyz-uvw-rst',
-      students: ['student1', 'student4', 'student5']
-    }
-  ]);
+  const [scheduledClasses, setScheduledClasses] = useState<ScheduledClass[]>([]);
+
+  // Load classes from persistent storage on component mount
+  useEffect(() => {
+    const data = persistentStorage.getData();
+    setScheduledClasses(data.scheduledClasses);
+  }, []);
+
+  // Save classes to persistent storage whenever classes change
+  useEffect(() => {
+    persistentStorage.updateScheduledClasses(scheduledClasses);
+  }, [scheduledClasses]);
 
   const generateMeetLink = () => {
     const randomId = Math.random().toString(36).substr(2, 3) + '-' + 
@@ -76,14 +67,14 @@ const ClassScheduler = () => {
     if (editingClass) {
       setScheduledClasses(prev => prev.map(c => c.id === editingClass.id ? classData : c));
       toast({
-        title: "Class updated!",
-        description: "The class has been successfully updated.",
+        title: "Class updated successfully!",
+        description: "The class has been updated and changes are saved.",
       });
     } else {
       setScheduledClasses(prev => [...prev, classData]);
       toast({
-        title: "Class scheduled!",
-        description: "The class has been successfully scheduled with Google Meet link.",
+        title: "Class scheduled successfully!",
+        description: "The class has been scheduled with Google Meet link.",
       });
     }
 
@@ -107,8 +98,8 @@ const ClassScheduler = () => {
   const handleDelete = (id: string) => {
     setScheduledClasses(prev => prev.filter(c => c.id !== id));
     toast({
-      title: "Class deleted",
-      description: "The class has been removed from the schedule.",
+      title: "Class deleted successfully",
+      description: "The class has been permanently removed from the schedule.",
     });
   };
 
@@ -130,7 +121,7 @@ const ClassScheduler = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Class Scheduler</h1>
-          <p className="text-gray-600">Schedule and manage your virtual classes</p>
+          <p className="text-gray-600">Schedule and manage your virtual classes with persistent storage</p>
         </div>
         <Button 
           onClick={() => setShowForm(true)}
@@ -265,7 +256,7 @@ const ClassScheduler = () => {
                 </div>
                 <div className="flex items-center space-x-3 text-sm text-gray-600">
                   <Video className="h-4 w-4" />
-                  <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                  <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded break-all">
                     {classItem.meetLink}
                   </span>
                 </div>
@@ -279,7 +270,17 @@ const ClassScheduler = () => {
                   <Video className="h-4 w-4 mr-2" />
                   Start Class
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(classItem.meetLink)}>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    navigator.clipboard.writeText(classItem.meetLink);
+                    toast({
+                      title: "Link copied!",
+                      description: "The meeting link has been copied to your clipboard.",
+                    });
+                  }}
+                >
                   Copy Link
                 </Button>
               </div>

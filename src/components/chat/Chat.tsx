@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { persistentStorage } from '../../utils/persistentStorage';
 import { 
   MessageCircle, 
   Send, 
@@ -17,7 +18,8 @@ import {
   Search,
   MoreVertical,
   Phone,
-  Video
+  Video,
+  Trash2
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -46,6 +48,7 @@ const Chat = () => {
   const { toast } = useToast();
   const [message, setMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [onlineUsers] = useState<ChatUser[]>([
@@ -80,68 +83,32 @@ const Chat = () => {
     }
   ]);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      userId: '1',
-      userName: 'Dr. Smith',
-      userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=drsmith',
-      message: 'Welcome everyone! This is our class discussion room. Feel free to ask questions and help each other.',
-      timestamp: new Date(Date.now() - 3600000),
-      isAdmin: true,
-      type: 'text'
-    },
-    {
-      id: '2',
-      userId: '2',
-      userName: 'Alice Johnson',
-      userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alice',
-      message: 'Thank you Dr. Smith! I have a question about the assignment due next week.',
-      timestamp: new Date(Date.now() - 3300000),
-      isAdmin: false,
-      type: 'text'
-    },
-    {
-      id: '3',
-      userId: '1',
-      userName: 'Dr. Smith',
-      userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=drsmith',
-      message: 'Of course Alice! What specific part would you like help with?',
-      timestamp: new Date(Date.now() - 3000000),
-      isAdmin: true,
-      type: 'text'
-    },
-    {
-      id: '4',
-      userId: '4',
-      userName: 'Carol Davis',
-      userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=carol',
-      message: 'I have the same question! Specifically about problem 3 in the calculus set.',
-      timestamp: new Date(Date.now() - 2700000),
-      isAdmin: false,
-      type: 'text'
-    },
-    {
-      id: '5',
-      userId: '1',
-      userName: 'Dr. Smith',
-      userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=drsmith',
-      message: 'Great question! For problem 3, remember to apply the chain rule when dealing with composite functions. I\'ll share a detailed explanation in our next class.',
-      timestamp: new Date(Date.now() - 2400000),
-      isAdmin: true,
-      type: 'text'
-    },
-    {
-      id: '6',
-      userId: '2',
-      userName: 'Alice Johnson',
-      userAvatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=alice',
-      message: 'That makes so much sense now! Thank you for the clarification.',
-      timestamp: new Date(Date.now() - 1800000),
-      isAdmin: false,
-      type: 'text'
-    }
-  ]);
+  // Load messages from persistent storage on component mount
+  useEffect(() => {
+    const data = persistentStorage.getData();
+    setMessages(data.chatMessages);
+  }, []);
+
+  // Save messages to persistent storage whenever messages change
+  useEffect(() => {
+    persistentStorage.updateChatMessages(messages);
+  }, [messages]);
+
+  // Poll for new messages every 2 seconds to simulate real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const data = persistentStorage.getData();
+      setMessages(prevMessages => {
+        const newMessages = data.chatMessages;
+        if (JSON.stringify(newMessages) !== JSON.stringify(prevMessages)) {
+          return newMessages;
+        }
+        return prevMessages;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -165,13 +132,25 @@ const Chat = () => {
       type: 'text'
     };
 
-    setMessages(prev => [...prev, newMessage]);
+    const updatedMessages = [...messages, newMessage];
+    setMessages(updatedMessages);
     setMessage('');
 
     toast({
       title: "Message sent!",
       description: "Your message has been sent to the chat.",
     });
+  };
+
+  const handleDeleteMessage = (messageId: string) => {
+    if (user?.role === 'admin') {
+      const updatedMessages = messages.filter(msg => msg.id !== messageId);
+      setMessages(updatedMessages);
+      toast({
+        title: "Message deleted",
+        description: "The message has been removed from the chat.",
+      });
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -201,6 +180,16 @@ const Chat = () => {
     msg.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
     msg.userName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const clearChat = () => {
+    if (user?.role === 'admin') {
+      setMessages([]);
+      toast({
+        title: "Chat cleared",
+        description: "All messages have been removed from the chat.",
+      });
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -273,8 +262,9 @@ const Chat = () => {
                   <CardTitle className="flex items-center space-x-2">
                     <MessageCircle className="h-5 w-5 text-purple-600" />
                     <span>Class Discussion</span>
+                    <Badge variant="outline">{messages.length} messages</Badge>
                   </CardTitle>
-                  <CardDescription>General chat for Mathematics - Calculus</CardDescription>
+                  <CardDescription>General chat for Virtual Classroom</CardDescription>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="relative">
@@ -286,6 +276,11 @@ const Chat = () => {
                       className="pl-10 w-64"
                     />
                   </div>
+                  {user?.role === 'admin' && (
+                    <Button size="sm" variant="ghost" onClick={clearChat}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
@@ -327,6 +322,16 @@ const Chat = () => {
                                 <span className="text-xs text-gray-400">
                                   {formatTime(msg.timestamp)}
                                 </span>
+                                {user?.role === 'admin' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-4 w-4 p-0 text-red-500"
+                                    onClick={() => handleDeleteMessage(msg.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
                             )}
                             
@@ -377,7 +382,7 @@ const Chat = () => {
               </div>
               <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
                 <span>Press Enter to send, Shift + Enter for new line</span>
-                <span>{onlineUsers.filter(u => u.isOnline).length} users online</span>
+                <span>{onlineUsers.filter(u => u.isOnline).length} users online • {messages.length} total messages</span>
               </div>
             </div>
           </Card>
