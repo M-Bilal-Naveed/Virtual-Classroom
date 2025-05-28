@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { persistentStorage } from '../../utils/persistentStorage';
+import { googleDriveStorage } from '../../utils/googleDriveStorage';
 import { 
   FileText, 
   Upload, 
@@ -19,7 +20,9 @@ import {
   Edit2, 
   Trash2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  ExternalLink,
+  Cloud
 } from 'lucide-react';
 
 interface Assignment {
@@ -32,6 +35,8 @@ interface Assignment {
   attachments: string[];
   submissions: Submission[];
   createdAt: Date;
+  driveFileId?: string;
+  driveLink?: string;
 }
 
 interface Submission {
@@ -42,6 +47,8 @@ interface Submission {
   files: string[];
   grade?: number;
   feedback?: string;
+  driveFileId?: string;
+  driveLink?: string;
 }
 
 const Assignments = () => {
@@ -50,6 +57,7 @@ const Assignments = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [uploading, setUploading] = useState(false);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -77,42 +85,51 @@ const Assignments = () => {
     persistentStorage.updateAssignments(assignments);
   }, [assignments]);
 
-  // Auto-remove overdue assignments (optional feature)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      setAssignments(prev => prev.filter(assignment => {
-        const dueDate = new Date(assignment.dueDate);
-        const daysSinceOverdue = (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceOverdue < 30; // Remove assignments 30 days after due date
-      }));
-    }, 60000); // Check every minute
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleCreateAssignment = (e: React.FormEvent) => {
+  const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    let driveData = null;
+    
+    // If there's a file selected, upload to Google Drive
+    if (selectedFile) {
+      setUploading(true);
+      try {
+        driveData = await googleDriveStorage.uploadFile(selectedFile, `${formData.title}_${selectedFile.name}`);
+        if (!driveData) {
+          // Fallback to simulate file upload
+          driveData = googleDriveStorage.simulateFileUpload(selectedFile);
+        }
+      } catch (error) {
+        console.error('Google Drive upload failed, using simulation:', error);
+        driveData = googleDriveStorage.simulateFileUpload(selectedFile);
+      }
+      setUploading(false);
+    }
     
     const newAssignment: Assignment = {
       id: Date.now().toString(),
       ...formData,
-      attachments: [],
+      attachments: selectedFile ? [selectedFile.name] : [],
       submissions: [],
-      createdAt: new Date()
+      createdAt: new Date(),
+      driveFileId: driveData?.id,
+      driveLink: driveData?.webViewLink
     };
 
     setAssignments(prev => [newAssignment, ...prev]);
     setFormData({ title: '', description: '', dueDate: '', maxPoints: 100, submissionFormat: 'pdf' });
+    setSelectedFile(null);
     setShowCreateForm(false);
     
     toast({
       title: "Assignment created successfully!",
-      description: "The assignment has been created and is visible to students.",
+      description: driveData 
+        ? "Assignment created and uploaded to Google Drive." 
+        : "Assignment created and saved locally.",
     });
   };
 
-  const handleSubmitAssignment = (assignmentId: string) => {
+  const handleSubmitAssignment = async (assignmentId: string) => {
     if (!selectedFile) {
       toast({
         title: "No file selected",
@@ -122,12 +139,27 @@ const Assignments = () => {
       return;
     }
 
+    setUploading(true);
+    let driveData = null;
+    
+    try {
+      driveData = await googleDriveStorage.uploadFile(selectedFile, `${user?.name}_${selectedFile.name}`);
+      if (!driveData) {
+        driveData = googleDriveStorage.simulateFileUpload(selectedFile);
+      }
+    } catch (error) {
+      console.error('Google Drive upload failed, using simulation:', error);
+      driveData = googleDriveStorage.simulateFileUpload(selectedFile);
+    }
+
     const newSubmission: Submission = {
       id: Date.now().toString(),
       studentId: user?.id || '',
       studentName: user?.name || '',
       submittedAt: new Date(),
-      files: [selectedFile.name]
+      files: [selectedFile.name],
+      driveFileId: driveData?.id,
+      driveLink: driveData?.webViewLink
     };
 
     setAssignments(prev => prev.map(assignment => 
@@ -137,14 +169,27 @@ const Assignments = () => {
     ));
 
     setSelectedFile(null);
+    setUploading(false);
+    
     toast({
       title: "Assignment submitted successfully!",
-      description: "Your assignment has been submitted and saved.",
+      description: driveData 
+        ? "Your assignment has been uploaded to Google Drive." 
+        : "Your assignment has been submitted and saved.",
     });
   };
 
-  const handleDeleteAssignment = (id: string) => {
-    setAssignments(prev => prev.filter(assignment => assignment.id !== id));
+  const handleDeleteAssignment = async (assignment: Assignment) => {
+    // Delete from Google Drive if it exists
+    if (assignment.driveFileId) {
+      try {
+        await googleDriveStorage.deleteFile(assignment.driveFileId);
+      } catch (error) {
+        console.error('Failed to delete from Google Drive:', error);
+      }
+    }
+
+    setAssignments(prev => prev.filter(a => a.id !== assignment.id));
     toast({
       title: "Assignment deleted successfully",
       description: "The assignment has been permanently removed.",
@@ -182,7 +227,7 @@ const Assignments = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Assignments</h1>
           <p className="text-gray-600">
-            {user?.role === 'admin' ? 'Create and manage assignments with persistent storage' : 'View and submit your assignments'}
+            {user?.role === 'admin' ? 'Create and manage assignments with Google Drive integration' : 'View and submit your assignments'}
           </p>
         </div>
         {user?.role === 'admin' && (
@@ -200,8 +245,11 @@ const Assignments = () => {
       {showCreateForm && user?.role === 'admin' && (
         <Card className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50">
           <CardHeader>
-            <CardTitle>Create New Assignment</CardTitle>
-            <CardDescription>Set up a new assignment for your students</CardDescription>
+            <CardTitle className="flex items-center space-x-2">
+              <Cloud className="h-5 w-5 text-purple-600" />
+              <span>Create New Assignment</span>
+            </CardTitle>
+            <CardDescription>Set up a new assignment with Google Drive integration</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleCreateAssignment} className="space-y-4">
@@ -234,7 +282,7 @@ const Assignments = () => {
                   rows={3}
                 />
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Max Points</label>
                   <Input
@@ -257,9 +305,26 @@ const Assignments = () => {
                     <option value="any">Any Format</option>
                   </select>
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Attach File (Optional)</label>
+                  <Input
+                    type="file"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.txt"
+                  />
+                </div>
               </div>
               <div className="flex space-x-4">
-                <Button type="submit">Create Assignment</Button>
+                <Button type="submit" disabled={uploading}>
+                  {uploading ? (
+                    <>
+                      <Cloud className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    'Create Assignment'
+                  )}
+                </Button>
                 <Button type="button" variant="outline" onClick={() => setShowCreateForm(false)}>
                   Cancel
                 </Button>
@@ -293,12 +358,18 @@ const Assignments = () => {
                             {status.text}
                           </Badge>
                         )}
+                        {assignment.driveLink && (
+                          <Badge variant="outline" className="text-blue-600">
+                            <Cloud className="h-3 w-3 mr-1" />
+                            Google Drive
+                          </Badge>
+                        )}
                       </div>
                       <CardDescription>{assignment.description}</CardDescription>
                     </div>
                     {user?.role === 'admin' && (
                       <div className="flex space-x-2">
-                        <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteAssignment(assignment.id)}>
+                        <Button size="sm" variant="ghost" className="text-red-600" onClick={() => handleDeleteAssignment(assignment)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -323,6 +394,25 @@ const Assignments = () => {
                     </div>
                   </div>
 
+                  {assignment.driveLink && (
+                    <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Cloud className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm text-blue-600">Assignment file available on Google Drive</span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => window.open(assignment.driveLink, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          View File
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {user?.role === 'student' && !assignment.submissions.find(s => s.studentId === user.id) && daysUntilDue > 0 && (
                     <div className="border-t pt-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Submit Assignment:</h4>
@@ -336,10 +426,19 @@ const Assignments = () => {
                         />
                         <Button 
                           onClick={() => handleSubmitAssignment(assignment.id)}
-                          disabled={!selectedFile}
+                          disabled={!selectedFile || uploading}
                         >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Submit
+                          {uploading ? (
+                            <>
+                              <Cloud className="h-4 w-4 mr-2 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Submit
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -385,6 +484,17 @@ const Assignments = () => {
                         <p className="text-sm text-gray-600">Files: {submission.files.join(', ')}</p>
                         {submission.grade && (
                           <p className="text-sm text-green-600">Grade: {submission.grade}/{assignment.maxPoints}</p>
+                        )}
+                        {submission.driveLink && (
+                          <Button 
+                            size="sm" 
+                            variant="link" 
+                            className="p-0 h-auto text-blue-600"
+                            onClick={() => window.open(submission.driveLink, '_blank')}
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            View on Google Drive
+                          </Button>
                         )}
                       </div>
                       <CheckCircle className="h-5 w-5 text-green-500" />

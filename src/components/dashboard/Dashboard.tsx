@@ -1,8 +1,10 @@
-import React from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../../contexts/AuthContext';
+import { persistentStorage } from '../../utils/persistentStorage';
 import { 
   Calendar, 
   Video, 
@@ -18,18 +20,74 @@ import {
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
+  const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
+  const [statistics, setStatistics] = useState({
+    totalClasses: 0,
+    totalAssignments: 0,
+    attendanceRate: 95
+  });
 
-  const upcomingClasses = [
-    { id: 1, title: 'Mathematics', time: '10:00 AM', date: 'Today', instructor: 'Dr. Smith' },
-    { id: 2, title: 'Physics', time: '2:00 PM', date: 'Today', instructor: 'Prof. Johnson' },
-    { id: 3, title: 'Chemistry', time: '11:00 AM', date: 'Tomorrow', instructor: 'Dr. Brown' },
-  ];
+  // Load real data from persistent storage
+  useEffect(() => {
+    const loadDashboardData = () => {
+      const data = persistentStorage.getData();
+      
+      // Get upcoming classes (within next 7 days)
+      const now = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(now.getDate() + 7);
+      
+      const upcoming = data.scheduledClasses
+        .filter(cls => {
+          const classDate = new Date(cls.date);
+          return classDate >= now && classDate <= nextWeek;
+        })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        .slice(0, 3);
+      
+      setUpcomingClasses(upcoming);
 
-  const recentAssignments = [
-    { id: 1, title: 'Linear Algebra Problem Set', due: '2 days', status: 'pending' },
-    { id: 2, title: 'Physics Lab Report', due: '5 days', status: 'submitted' },
-    { id: 3, title: 'Chemistry Research Paper', due: '1 week', status: 'pending' },
-  ];
+      // Get recent assignments (due within next 14 days or recently created)
+      const recent = data.assignments
+        .filter(assignment => {
+          const dueDate = new Date(assignment.dueDate);
+          const createdDate = new Date(assignment.createdAt || assignment.dueDate);
+          const twoWeeksFromNow = new Date();
+          twoWeeksFromNow.setDate(now.getDate() + 14);
+          
+          return dueDate >= now && dueDate <= twoWeeksFromNow;
+        })
+        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 3)
+        .map(assignment => {
+          const dueDate = new Date(assignment.dueDate);
+          const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const userSubmission = assignment.submissions?.find((s: any) => s.studentId === user?.id);
+          
+          return {
+            ...assignment,
+            due: daysUntilDue > 0 ? `${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}` : 'Today',
+            status: userSubmission ? 'submitted' : 'pending'
+          };
+        });
+      
+      setRecentAssignments(recent);
+
+      // Update statistics
+      setStatistics({
+        totalClasses: data.scheduledClasses.length,
+        totalAssignments: data.assignments.length,
+        attendanceRate: 95
+      });
+    };
+
+    loadDashboardData();
+
+    // Set up interval to refresh data every 30 seconds
+    const interval = setInterval(loadDashboardData, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   const quickActions = user?.role === 'admin' ? [
     { title: 'Schedule Class', icon: Calendar, href: '/schedule', color: 'bg-purple-500' },
@@ -62,15 +120,15 @@ const Dashboard = () => {
             </div>
             <div className="hidden md:flex items-center space-x-4">
               <div className="text-center">
-                <div className="text-2xl font-bold">8</div>
+                <div className="text-2xl font-bold">{statistics.totalClasses}</div>
                 <div className="text-sm text-purple-200">Classes</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">12</div>
+                <div className="text-2xl font-bold">{statistics.totalAssignments}</div>
                 <div className="text-sm text-purple-200">Assignments</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">95%</div>
+                <div className="text-2xl font-bold">{statistics.attendanceRate}%</div>
                 <div className="text-sm text-purple-200">Attendance</div>
               </div>
             </div>
@@ -108,31 +166,40 @@ const Dashboard = () => {
               <Clock className="h-5 w-5 text-blue-600" />
               <span>Upcoming Classes</span>
             </CardTitle>
-            <CardDescription>Your schedule for today and tomorrow</CardDescription>
+            <CardDescription>Your scheduled classes for the coming week</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {upcomingClasses.map((classItem) => (
-                <div key={classItem.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <BookOpen className="h-5 w-5 text-blue-600" />
+              {upcomingClasses.length > 0 ? (
+                upcomingClasses.map((classItem) => (
+                  <div key={classItem.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{classItem.title}</h4>
+                        <p className="text-sm text-gray-600">{classItem.description}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{classItem.title}</h4>
-                      <p className="text-sm text-gray-600">{classItem.instructor}</p>
+                    <div className="text-right">
+                      <div className="font-semibold text-gray-900">{classItem.time}</div>
+                      <div className="text-sm text-gray-600">{new Date(classItem.date).toLocaleDateString()}</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-gray-900">{classItem.time}</div>
-                    <div className="text-sm text-gray-600">{classItem.date}</div>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No upcoming classes scheduled</p>
                 </div>
-              ))}
+              )}
             </div>
-            <Button variant="outline" className="w-full mt-4">
-              View All Classes
-            </Button>
+            <Link to="/schedule">
+              <Button variant="outline" className="w-full mt-4">
+                View All Classes
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 
@@ -144,35 +211,42 @@ const Dashboard = () => {
               <span>Recent Assignments</span>
             </CardTitle>
             <CardDescription>
-              {user?.role === 'admin' ? 'Assignments you\'ve created' : 'Your pending and submitted work'}
+              {user?.role === 'admin' ? 'Recently created assignments' : 'Your upcoming assignments'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentAssignments.map((assignment) => (
-                <div key={assignment.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      assignment.status === 'submitted' ? 'bg-green-100' : 'bg-orange-100'
+              {recentAssignments.length > 0 ? (
+                recentAssignments.map((assignment) => (
+                  <div key={assignment.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        assignment.status === 'submitted' ? 'bg-green-100' : 'bg-orange-100'
+                      }`}>
+                        <FileText className={`h-5 w-5 ${
+                          assignment.status === 'submitted' ? 'text-green-600' : 'text-orange-600'
+                        }`} />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
+                        <p className="text-sm text-gray-600">Due in {assignment.due}</p>
+                      </div>
+                    </div>
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      assignment.status === 'submitted' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-orange-100 text-orange-800'
                     }`}>
-                      <FileText className={`h-5 w-5 ${
-                        assignment.status === 'submitted' ? 'text-green-600' : 'text-orange-600'
-                      }`} />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
-                      <p className="text-sm text-gray-600">Due in {assignment.due}</p>
+                      {assignment.status}
                     </div>
                   </div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    assignment.status === 'submitted' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-orange-100 text-orange-800'
-                  }`}>
-                    {assignment.status}
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No recent assignments</p>
                 </div>
-              ))}
+              )}
             </div>
             <Link to="/assignments">
               <Button variant="outline" className="w-full mt-4">
@@ -190,13 +264,13 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-purple-100">Total Classes</p>
-                <p className="text-3xl font-bold">24</p>
+                <p className="text-3xl font-bold">{statistics.totalClasses}</p>
               </div>
               <Video className="h-12 w-12 text-purple-200" />
             </div>
             <div className="mt-4 flex items-center space-x-2">
               <TrendingUp className="h-4 w-4 text-purple-200" />
-              <span className="text-sm text-purple-100">+12% from last month</span>
+              <span className="text-sm text-purple-100">Scheduled classes</span>
             </div>
           </CardContent>
         </Card>
@@ -206,13 +280,13 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100">Assignments</p>
-                <p className="text-3xl font-bold">18</p>
+                <p className="text-3xl font-bold">{statistics.totalAssignments}</p>
               </div>
               <FileText className="h-12 w-12 text-blue-200" />
             </div>
             <div className="mt-4 flex items-center space-x-2">
               <TrendingUp className="h-4 w-4 text-blue-200" />
-              <span className="text-sm text-blue-100">+8% completion rate</span>
+              <span className="text-sm text-blue-100">Active assignments</span>
             </div>
           </CardContent>
         </Card>
@@ -222,13 +296,13 @@ const Dashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-green-100">Attendance</p>
-                <p className="text-3xl font-bold">94%</p>
+                <p className="text-3xl font-bold">{statistics.attendanceRate}%</p>
               </div>
               <Users className="h-12 w-12 text-green-200" />
             </div>
             <div className="mt-4 flex items-center space-x-2">
               <TrendingUp className="h-4 w-4 text-green-200" />
-              <span className="text-sm text-green-100">+2% this week</span>
+              <span className="text-sm text-green-100">Average rate</span>
             </div>
           </CardContent>
         </Card>
