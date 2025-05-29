@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { persistentStorage } from '../../utils/persistentStorage';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, 
   Clock, 
@@ -28,6 +29,7 @@ interface ScheduledClass {
 
 const StudentClassView = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [classes, setClasses] = useState<ScheduledClass[]>([]);
 
   useEffect(() => {
@@ -36,8 +38,12 @@ const StudentClassView = () => {
   }, []);
 
   const joinClass = (classItem: ScheduledClass) => {
-    // Open Google Meet link in new tab
+    // Open Zoom link in new tab
     window.open(classItem.meetLink, '_blank');
+    toast({
+      title: "Opening Zoom Meeting...",
+      description: "The class meeting is opening in a new tab.",
+    });
   };
 
   const isClassLive = (classDate: string, classTime: string) => {
@@ -77,7 +83,7 @@ const StudentClassView = () => {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Available Classes</h1>
-        <p className="text-gray-600">Join your scheduled classes and participate in live sessions</p>
+        <p className="text-gray-600">Join your scheduled classes and participate in live sessions via Zoom</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -157,7 +163,10 @@ const StudentClassView = () => {
                     className="w-full text-sm"
                     onClick={() => {
                       navigator.clipboard.writeText(classItem.meetLink);
-                      // You could add a toast here
+                      toast({
+                        title: "Link copied!",
+                        description: "The Zoom meeting link has been copied to your clipboard.",
+                      });
                     }}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />

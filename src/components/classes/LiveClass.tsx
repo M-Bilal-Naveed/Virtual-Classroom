@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -96,9 +95,13 @@ const LiveClass = () => {
     }
   };
 
-  const openInGoogleMeet = () => {
+  const openInZoom = () => {
     if (classInfo?.meetLink) {
       window.open(classInfo.meetLink, '_blank');
+      toast({
+        title: "Opening Zoom Meeting...",
+        description: "The meeting is opening in a new tab.",
+      });
     }
   };
 
@@ -135,11 +138,11 @@ const LiveClass = () => {
               </div>
             </div>
             <Button 
-              onClick={openInGoogleMeet}
+              onClick={openInZoom}
               className="bg-white text-blue-600 hover:bg-gray-100"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
-              Open in Google Meet
+              Open in Zoom
             </Button>
           </div>
         </CardHeader>
@@ -155,7 +158,7 @@ const LiveClass = () => {
                 <div className="text-center text-white">
                   <Video className="h-16 w-16 mx-auto mb-4 opacity-50" />
                   <h3 className="text-xl font-semibold mb-2">Class Video Stream</h3>
-                  <p className="text-gray-400">Click "Open in Google Meet" for actual video conferencing</p>
+                  <p className="text-gray-400">Click "Open in Zoom" for actual video conferencing</p>
                 </div>
               </div>
 

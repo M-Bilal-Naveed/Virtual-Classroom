@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,18 +50,12 @@ const ClassScheduler = () => {
     }
   }, [scheduledClasses, user?.role]);
 
-  const generateMeetLink = () => {
-    // Generate a valid Google Meet room code format
-    const characters = 'abcdefghijklmnopqrstuvwxyz';
-    const numbers = '0123456789';
+  const generateZoomLink = () => {
+    // Generate a valid Zoom meeting ID format (9-11 digits)
+    const meetingId = Math.floor(100000000 + Math.random() * 900000000); // 9-digit number
+    const passcode = Math.floor(100000 + Math.random() * 900000); // 6-digit passcode
     
-    // Generate room code in format: xxx-xxxx-xxx
-    const part1 = Array.from({length: 3}, () => characters[Math.floor(Math.random() * characters.length)]).join('');
-    const part2 = Array.from({length: 4}, () => characters[Math.floor(Math.random() * characters.length)]).join('');
-    const part3 = Array.from({length: 3}, () => characters[Math.floor(Math.random() * characters.length)]).join('');
-    
-    const roomCode = `${part1}-${part2}-${part3}`;
-    return `https://meet.google.com/${roomCode}`;
+    return `https://zoom.us/j/${meetingId}?pwd=${passcode}`;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -69,7 +64,7 @@ const ClassScheduler = () => {
     const classData: ScheduledClass = {
       id: editingClass ? editingClass.id : Date.now().toString(),
       ...formData,
-      meetLink: editingClass ? editingClass.meetLink : generateMeetLink(),
+      meetLink: editingClass ? editingClass.meetLink : generateZoomLink(),
       students: editingClass ? editingClass.students : []
     };
 
@@ -83,7 +78,7 @@ const ClassScheduler = () => {
       setScheduledClasses(prev => [...prev, classData]);
       toast({
         title: "Class scheduled successfully!",
-        description: "The class has been scheduled with a valid Google Meet link.",
+        description: "The class has been scheduled with a valid Zoom meeting link.",
       });
     }
 
@@ -113,10 +108,10 @@ const ClassScheduler = () => {
   };
 
   const joinClass = (classItem: ScheduledClass) => {
-    // Open Google Meet link in new tab - this will work with valid room codes
+    // Open Zoom link in new tab
     window.open(classItem.meetLink, '_blank');
     toast({
-      title: "Opening Google Meet...",
+      title: "Opening Zoom Meeting...",
       description: "The class meeting is opening in a new tab.",
     });
   };
@@ -126,7 +121,7 @@ const ClassScheduler = () => {
     window.open(classItem.meetLink, '_blank');
     toast({
       title: "Starting class...",
-      description: "Opening Google Meet for your class.",
+      description: "Opening Zoom meeting for your class.",
     });
   };
 
@@ -152,7 +147,7 @@ const ClassScheduler = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Available Classes</h1>
-          <p className="text-gray-600">Join your scheduled classes and participate in live sessions</p>
+          <p className="text-gray-600">Join your scheduled classes and participate in live sessions via Zoom</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -223,7 +218,7 @@ const ClassScheduler = () => {
                         navigator.clipboard.writeText(classItem.meetLink);
                         toast({
                           title: "Link copied!",
-                          description: "The meeting link has been copied to your clipboard.",
+                          description: "The Zoom meeting link has been copied to your clipboard.",
                         });
                       }}
                     >
@@ -269,7 +264,7 @@ const ClassScheduler = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Class Scheduler</h1>
-          <p className="text-gray-600">Schedule and manage your virtual classes with valid Google Meet links</p>
+          <p className="text-gray-600">Schedule and manage your virtual classes with valid Zoom meeting links</p>
         </div>
         <Button 
           onClick={() => setShowForm(true)}
@@ -288,7 +283,7 @@ const ClassScheduler = () => {
               <span>{editingClass ? 'Edit Class' : 'Schedule New Class'}</span>
             </CardTitle>
             <CardDescription>
-              {editingClass ? 'Update class details' : 'Create a new virtual class with automatic Google Meet integration'}
+              {editingClass ? 'Update class details' : 'Create a new virtual class with automatic Zoom integration'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -339,11 +334,10 @@ const ClassScheduler = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="20">20 minutes</SelectItem>
                       <SelectItem value="30">30 minutes</SelectItem>
                       <SelectItem value="45">45 minutes</SelectItem>
-                      <SelectItem value="60">1 hour</SelectItem>
-                      <SelectItem value="90">1.5 hours</SelectItem>
-                      <SelectItem value="120">2 hours</SelectItem>
+                      <SelectItem value="60">60 minutes</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -412,7 +406,7 @@ const ClassScheduler = () => {
               <div className="mt-4 pt-4 border-t flex space-x-2">
                 <Button 
                   size="sm" 
-                  className="flex-1 bg-green-600 hover:bg-green-700" 
+                  className="flex-1 bg-blue-600 hover:bg-blue-700" 
                   onClick={() => startClass(classItem)}
                 >
                   <Video className="h-4 w-4 mr-2" />
@@ -425,7 +419,7 @@ const ClassScheduler = () => {
                     navigator.clipboard.writeText(classItem.meetLink);
                     toast({
                       title: "Link copied!",
-                      description: "The meeting link has been copied to your clipboard.",
+                      description: "The Zoom meeting link has been copied to your clipboard.",
                     });
                   }}
                 >

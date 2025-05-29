@@ -122,12 +122,12 @@ const Dashboard = () => {
   };
 
   const joinClass = (classItem: any) => {
-    // Direct join with valid Google Meet link
+    // Direct join with valid Zoom link
     window.open(classItem.meetLink, '_blank');
   };
 
   const startClass = (classItem: any) => {
-    // For admin, open the meeting link directly
+    // For admin, open the Zoom meeting link directly
     window.open(classItem.meetLink, '_blank');
   };
 
@@ -229,7 +229,7 @@ const Dashboard = () => {
               <span>{user?.role === 'admin' ? 'Scheduled Classes' : 'Available Classes'}</span>
             </CardTitle>
             <CardDescription>
-              {user?.role === 'admin' ? 'Your scheduled classes' : 'Classes you can join'}
+              {user?.role === 'admin' ? 'Your scheduled classes' : 'Classes you can join via Zoom'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -274,7 +274,7 @@ const Dashboard = () => {
                           <Button 
                             size="sm" 
                             onClick={() => startClass(classItem)}
-                            className="bg-green-600 hover:bg-green-700"
+                            className="bg-blue-600 hover:bg-blue-700"
                           >
                             <Video className="h-4 w-4 mr-1" />
                             Start Class
