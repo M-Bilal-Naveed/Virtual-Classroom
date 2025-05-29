@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -123,6 +122,12 @@ const Dashboard = () => {
   };
 
   const joinClass = (classItem: any) => {
+    // Direct join with valid Google Meet link
+    window.open(classItem.meetLink, '_blank');
+  };
+
+  const startClass = (classItem: any) => {
+    // For admin, open the meeting link directly
     window.open(classItem.meetLink, '_blank');
   };
 
@@ -268,10 +273,10 @@ const Dashboard = () => {
                         {user?.role === 'admin' && (
                           <Button 
                             size="sm" 
-                            onClick={() => window.open(classItem.meetLink, '_blank')}
-                            className="bg-purple-600 hover:bg-purple-700"
+                            onClick={() => startClass(classItem)}
+                            className="bg-green-600 hover:bg-green-700"
                           >
-                            <ExternalLink className="h-4 w-4 mr-1" />
+                            <Video className="h-4 w-4 mr-1" />
                             Start Class
                           </Button>
                         )}

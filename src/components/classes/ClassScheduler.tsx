@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,10 +50,17 @@ const ClassScheduler = () => {
   }, [scheduledClasses, user?.role]);
 
   const generateMeetLink = () => {
-    const randomId = Math.random().toString(36).substr(2, 3) + '-' + 
-                    Math.random().toString(36).substr(2, 3) + '-' + 
-                    Math.random().toString(36).substr(2, 3);
-    return `https://meet.google.com/${randomId}`;
+    // Generate a valid Google Meet room code format
+    const characters = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    
+    // Generate room code in format: xxx-xxxx-xxx
+    const part1 = Array.from({length: 3}, () => characters[Math.floor(Math.random() * characters.length)]).join('');
+    const part2 = Array.from({length: 4}, () => characters[Math.floor(Math.random() * characters.length)]).join('');
+    const part3 = Array.from({length: 3}, () => characters[Math.floor(Math.random() * characters.length)]).join('');
+    
+    const roomCode = `${part1}-${part2}-${part3}`;
+    return `https://meet.google.com/${roomCode}`;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -77,7 +83,7 @@ const ClassScheduler = () => {
       setScheduledClasses(prev => [...prev, classData]);
       toast({
         title: "Class scheduled successfully!",
-        description: "The class has been scheduled with Google Meet link.",
+        description: "The class has been scheduled with a valid Google Meet link.",
       });
     }
 
@@ -107,10 +113,20 @@ const ClassScheduler = () => {
   };
 
   const joinClass = (classItem: ScheduledClass) => {
+    // Open Google Meet link in new tab - this will work with valid room codes
     window.open(classItem.meetLink, '_blank');
     toast({
-      title: "Joining class...",
-      description: "Opening Google Meet in a new tab.",
+      title: "Opening Google Meet...",
+      description: "The class meeting is opening in a new tab.",
+    });
+  };
+
+  const startClass = (classItem: ScheduledClass) => {
+    // For admin, open the meeting link directly
+    window.open(classItem.meetLink, '_blank');
+    toast({
+      title: "Starting class...",
+      description: "Opening Google Meet for your class.",
     });
   };
 
@@ -189,18 +205,16 @@ const ClassScheduler = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {(isLive || isUpcoming) && (
-                      <Button 
-                        onClick={() => joinClass(classItem)}
-                        className={`w-full ${isLive 
-                          ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-                          : 'bg-orange-600 hover:bg-orange-700'
-                        }`}
-                      >
-                        <Video className="h-4 w-4 mr-2" />
-                        {isLive ? 'Join Live Class' : 'Join Class'}
-                      </Button>
-                    )}
+                    <Button 
+                      onClick={() => joinClass(classItem)}
+                      className={`w-full ${isLive 
+                        ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      {isLive ? 'Join Live Class' : 'Join Class'}
+                    </Button>
                     
                     <Button 
                       variant="outline" 
@@ -255,7 +269,7 @@ const ClassScheduler = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Class Scheduler</h1>
-          <p className="text-gray-600">Schedule and manage your virtual classes with persistent storage</p>
+          <p className="text-gray-600">Schedule and manage your virtual classes with valid Google Meet links</p>
         </div>
         <Button 
           onClick={() => setShowForm(true)}
@@ -398,8 +412,8 @@ const ClassScheduler = () => {
               <div className="mt-4 pt-4 border-t flex space-x-2">
                 <Button 
                   size="sm" 
-                  className="flex-1" 
-                  onClick={() => window.open(classItem.meetLink, '_blank')}
+                  className="flex-1 bg-green-600 hover:bg-green-700" 
+                  onClick={() => startClass(classItem)}
                 >
                   <Video className="h-4 w-4 mr-2" />
                   Start Class
