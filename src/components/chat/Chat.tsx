@@ -137,9 +137,9 @@ const Chat = () => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Main Chat Area - Full Width */}
-      <Card className="h-[calc(100vh-200px)] flex flex-col">
-        <CardHeader className="border-b">
+      {/* Main Chat Area - Fixed Height with Proper Overflow */}
+      <Card className="h-[600px] flex flex-col">
+        <CardHeader className="border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center space-x-2">
@@ -171,9 +171,9 @@ const Chat = () => {
           </div>
         </CardHeader>
 
-        {/* Messages Area */}
-        <CardContent className="flex-1 p-0">
-          <ScrollArea className="h-[400px] p-4">
+        {/* Messages Area - Proper Flex and Overflow */}
+        <CardContent className="flex-1 p-0 overflow-hidden">
+          <ScrollArea className="h-full p-4">
             <div className="space-y-4">
               {filteredMessages.map((msg, index) => {
                 const isOwnMessage = msg.userId === user?.id;
@@ -183,7 +183,7 @@ const Chat = () => {
                   <div key={msg.id} className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                     <div className={`flex max-w-xs lg:max-w-md ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} space-x-2`}>
                       {showAvatar && !isOwnMessage && (
-                        <Avatar className="h-8 w-8 mt-1">
+                        <Avatar className="h-8 w-8 mt-1 flex-shrink-0">
                           <AvatarImage src={msg.userAvatar} alt={msg.userName} />
                           <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
                             {msg.userName.charAt(0)}
@@ -191,7 +191,7 @@ const Chat = () => {
                         </Avatar>
                       )}
                       
-                      <div className={`${showAvatar && !isOwnMessage ? '' : 'ml-10'} ${isOwnMessage ? 'mr-0' : ''}`}>
+                      <div className={`${showAvatar && !isOwnMessage ? '' : 'ml-10'} ${isOwnMessage ? 'mr-0' : ''} min-w-0 flex-1`}>
                         {showAvatar && (
                           <div className={`flex items-center space-x-2 mb-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
                             <span className="text-xs font-medium text-gray-600">
@@ -218,7 +218,7 @@ const Chat = () => {
                           </div>
                         )}
                         
-                        <div className={`rounded-lg px-3 py-2 ${
+                        <div className={`rounded-lg px-3 py-2 break-words ${
                           isOwnMessage
                             ? 'bg-purple-600 text-white'
                             : msg.isAdmin
@@ -237,10 +237,10 @@ const Chat = () => {
           </ScrollArea>
         </CardContent>
 
-        {/* Message Input */}
-        <div className="border-t p-4">
+        {/* Message Input - Fixed at Bottom */}
+        <div className="border-t p-4 flex-shrink-0">
           <div className="flex items-center space-x-2">
-            <Button size="sm" variant="ghost" className="h-10 w-10 p-0">
+            <Button size="sm" variant="ghost" className="h-10 w-10 p-0 flex-shrink-0">
               <Paperclip className="h-4 w-4" />
             </Button>
             <div className="flex-1 relative">
@@ -258,7 +258,7 @@ const Chat = () => {
             <Button 
               onClick={handleSendMessage}
               disabled={!message.trim()}
-              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+              className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 flex-shrink-0"
             >
               <Send className="h-4 w-4" />
             </Button>

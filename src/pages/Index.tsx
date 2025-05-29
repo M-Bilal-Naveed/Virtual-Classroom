@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Login from '../components/auth/Login';
 import Dashboard from '../components/dashboard/Dashboard';
 import ClassScheduler from '../components/classes/ClassScheduler';
+import StudentClassView from '../components/classes/StudentClassView';
 import LiveClass from '../components/classes/LiveClass';
 import Assignments from '../components/assignments/Assignments';
 import Materials from '../components/materials/Materials';

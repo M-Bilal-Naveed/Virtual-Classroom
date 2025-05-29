@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { persistentStorage } from '../../utils/persistentStorage';
-import { Calendar, Clock, Users, Video, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, Clock, Users, Video, Plus, Edit2, Trash2, ExternalLink } from 'lucide-react';
 
 interface ScheduledClass {
   id: string;
@@ -42,10 +43,12 @@ const ClassScheduler = () => {
     setScheduledClasses(data.scheduledClasses);
   }, []);
 
-  // Save classes to persistent storage whenever classes change
+  // Save classes to persistent storage whenever classes change (admin only)
   useEffect(() => {
-    persistentStorage.updateScheduledClasses(scheduledClasses);
-  }, [scheduledClasses]);
+    if (user?.role === 'admin') {
+      persistentStorage.updateScheduledClasses(scheduledClasses);
+    }
+  }, [scheduledClasses, user?.role]);
 
   const generateMeetLink = () => {
     const randomId = Math.random().toString(36).substr(2, 3) + '-' + 
@@ -103,13 +106,144 @@ const ClassScheduler = () => {
     });
   };
 
+  const joinClass = (classItem: ScheduledClass) => {
+    window.open(classItem.meetLink, '_blank');
+    toast({
+      title: "Joining class...",
+      description: "Opening Google Meet in a new tab.",
+    });
+  };
+
+  const isClassLive = (classDate: string, classTime: string) => {
+    const classDateTime = new Date(`${classDate} ${classTime}`);
+    const now = new Date();
+    const classEndTime = new Date(classDateTime.getTime() + (60 * 60 * 1000)); // Assume 1 hour duration
+    
+    return now >= classDateTime && now <= classEndTime;
+  };
+
+  const isClassUpcoming = (classDate: string, classTime: string) => {
+    const classDateTime = new Date(`${classDate} ${classTime}`);
+    const now = new Date();
+    const oneHourBefore = new Date(classDateTime.getTime() - (60 * 60 * 1000));
+    
+    return now >= oneHourBefore && now < classDateTime;
+  };
+
+  // Student view - just show classes
+  if (user?.role === 'student') {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Available Classes</h1>
+          <p className="text-gray-600">Join your scheduled classes and participate in live sessions</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {scheduledClasses.map((classItem) => {
+            const isLive = isClassLive(classItem.date, classItem.time);
+            const isUpcoming = isClassUpcoming(classItem.date, classItem.time);
+            const classDateTime = new Date(`${classItem.date} ${classItem.time}`);
+            const isPast = new Date() > classDateTime;
+
+            return (
+              <Card key={classItem.id} className="hover:shadow-lg transition-shadow bg-gradient-to-br from-white to-gray-50">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-lg flex items-center space-x-2">
+                        <span>{classItem.title}</span>
+                        {isLive && (
+                          <Badge variant="destructive" className="animate-pulse">
+                            LIVE
+                          </Badge>
+                        )}
+                        {isUpcoming && !isLive && (
+                          <Badge variant="default" className="bg-orange-500">
+                            Starting Soon
+                          </Badge>
+                        )}
+                        {isPast && !isLive && (
+                          <Badge variant="secondary">
+                            Ended
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <CardDescription className="mt-1">{classItem.description}</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 mb-4">
+                    <div className="flex items-center space-x-3 text-sm text-gray-600">
+                      <Calendar className="h-4 w-4" />
+                      <span>{new Date(classItem.date).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-sm text-gray-600">
+                      <Clock className="h-4 w-4" />
+                      <span>{classItem.time} ({classItem.duration} minutes)</span>
+                    </div>
+                    <div className="flex items-center space-x-3 text-sm text-gray-600">
+                      <Users className="h-4 w-4" />
+                      <span>{classItem.students.length} students enrolled</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {(isLive || isUpcoming) && (
+                      <Button 
+                        onClick={() => joinClass(classItem)}
+                        className={`w-full ${isLive 
+                          ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                          : 'bg-orange-600 hover:bg-orange-700'
+                        }`}
+                      >
+                        <Video className="h-4 w-4 mr-2" />
+                        {isLive ? 'Join Live Class' : 'Join Class'}
+                      </Button>
+                    )}
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => {
+                        navigator.clipboard.writeText(classItem.meetLink);
+                        toast({
+                          title: "Link copied!",
+                          description: "The meeting link has been copied to your clipboard.",
+                        });
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Copy Meeting Link
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {scheduledClasses.length === 0 && (
+          <Card className="text-center py-12">
+            <CardContent>
+              <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No classes available</h3>
+              <p className="text-gray-600">Check back later for new class schedules</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  // Admin view - full management interface
   if (user?.role !== 'admin') {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>
           <CardContent className="p-8 text-center">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h2>
-            <p className="text-gray-600">Only administrators can schedule classes.</p>
+            <p className="text-gray-600">Only administrators can manage class schedules.</p>
           </CardContent>
         </Card>
       </div>

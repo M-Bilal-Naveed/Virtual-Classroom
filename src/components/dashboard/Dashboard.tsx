@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,10 +16,10 @@ import {
   Clock,
   BookOpen,
   TrendingUp,
-  Bell,
   Download,
   Trash2,
-  Eye
+  Eye,
+  ExternalLink
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -121,13 +122,25 @@ const Dashboard = () => {
     }
   };
 
+  const joinClass = (classItem: any) => {
+    window.open(classItem.meetLink, '_blank');
+  };
+
+  const isClassLive = (classDate: string, classTime: string) => {
+    const classDateTime = new Date(`${classDate} ${classTime}`);
+    const now = new Date();
+    const classEndTime = new Date(classDateTime.getTime() + (60 * 60 * 1000)); // Assume 1 hour duration
+    
+    return now >= classDateTime && now <= classEndTime;
+  };
+
   const quickActions = user?.role === 'admin' ? [
     { title: 'Schedule Class', icon: Calendar, href: '/schedule', color: 'bg-purple-500' },
     { title: 'Upload Materials', icon: FolderOpen, href: '/materials', color: 'bg-blue-500' },
     { title: 'Create Assignment', icon: FileText, href: '/assignments', color: 'bg-green-500' },
     { title: 'View Attendance', icon: Users, href: '/attendance', color: 'bg-orange-500' },
   ] : [
-    { title: 'Join Class', icon: Video, href: '/dashboard', color: 'bg-purple-500' },
+    { title: 'View Classes', icon: Video, href: '/schedule', color: 'bg-purple-500' },
     { title: 'View Assignments', icon: FileText, href: '/assignments', color: 'bg-blue-500' },
     { title: 'Download Materials', icon: FolderOpen, href: '/materials', color: 'bg-green-500' },
     { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
@@ -208,34 +221,70 @@ const Dashboard = () => {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-blue-600" />
-              <span>Upcoming Classes</span>
+              <span>{user?.role === 'admin' ? 'Scheduled Classes' : 'Available Classes'}</span>
             </CardTitle>
-            <CardDescription>Your scheduled classes</CardDescription>
+            <CardDescription>
+              {user?.role === 'admin' ? 'Your scheduled classes' : 'Classes you can join'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {upcomingClasses.length > 0 ? (
-                upcomingClasses.map((classItem) => (
-                  <div key={classItem.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <BookOpen className="h-5 w-5 text-blue-600" />
+                upcomingClasses.map((classItem) => {
+                  const isLive = isClassLive(classItem.date, classItem.time);
+                  return (
+                    <div key={classItem.id} className="p-3 bg-white rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <BookOpen className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{classItem.title}</h4>
+                            <p className="text-sm text-gray-600">{classItem.description}</p>
+                          </div>
+                        </div>
+                        {isLive && (
+                          <span className="px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full animate-pulse">
+                            LIVE
+                          </span>
+                        )}
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{classItem.title}</h4>
-                        <p className="text-sm text-gray-600">{classItem.description}</p>
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm text-gray-600">
+                          <div className="font-semibold">{classItem.time}</div>
+                          <div>{new Date(classItem.date).toLocaleDateString()}</div>
+                        </div>
+                        {user?.role === 'student' && (
+                          <Button 
+                            size="sm" 
+                            onClick={() => joinClass(classItem)}
+                            className={isLive ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}
+                          >
+                            <Video className="h-4 w-4 mr-1" />
+                            {isLive ? 'Join Live' : 'Join Class'}
+                          </Button>
+                        )}
+                        {user?.role === 'admin' && (
+                          <Button 
+                            size="sm" 
+                            onClick={() => window.open(classItem.meetLink, '_blank')}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-1" />
+                            Start Class
+                          </Button>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900">{classItem.time}</div>
-                      <div className="text-sm text-gray-600">{new Date(classItem.date).toLocaleDateString()}</div>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-8">
                   <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No upcoming classes scheduled</p>
+                  <p className="text-gray-600">
+                    {user?.role === 'admin' ? 'No classes scheduled' : 'No classes available'}
+                  </p>
                   {user?.role === 'admin' && (
                     <p className="text-sm text-gray-500 mt-2">Create classes in the Schedule section</p>
                   )}

@@ -33,10 +33,10 @@ class AuthService {
   private demoUsers: UserProfile[] = [
     {
       id: 'demo-admin',
-      email: 'admin@test.com',
+      email: 'admin@gmail.com',
       name: 'Admin User',
       role: 'admin',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin@test.com',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin@gmail.com',
       createdAt: new Date(),
       lastLogin: new Date()
     }
@@ -45,15 +45,38 @@ class AuthService {
   async signUp(email: string, password: string, name: string, role: 'admin' | 'student'): Promise<UserProfile> {
     try {
       // Check if it's a demo login
-      if (email === 'admin@test.com') {
+      if (email === 'admin@gmail.com') {
         return this.demoUsers[0];
+      }
+
+      // Validate email format
+      if (!email.includes('@')) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      // Validate password
+      if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters long');
+      }
+
+      // Validate name
+      if (name.trim().length < 2) {
+        throw new Error('Name must be at least 2 characters long');
+      }
+
+      // Check if user already exists
+      const existingUsers = JSON.parse(localStorage.getItem('virtualClassroom_users') || '[]');
+      const existingUser = existingUsers.find((u: UserProfile) => u.email === email);
+      
+      if (existingUser) {
+        throw new Error('An account with this email already exists. Please login instead.');
       }
 
       // For demo purposes, create a mock user profile
       const userProfile: UserProfile = {
         id: `user-${Date.now()}`,
         email,
-        name,
+        name: name.trim(),
         role,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
         createdAt: new Date(),
@@ -61,8 +84,7 @@ class AuthService {
       };
 
       // Store in localStorage for persistence
-      const users = JSON.parse(localStorage.getItem('virtualClassroom_users') || '[]');
-      users.push(userProfile);
+      const users = [...existingUsers, userProfile];
       localStorage.setItem('virtualClassroom_users', JSON.stringify(users));
       
       return userProfile;
@@ -73,8 +95,17 @@ class AuthService {
 
   async signIn(email: string, password: string): Promise<UserProfile> {
     try {
+      // Validate inputs
+      if (!email.trim()) {
+        throw new Error('Email is required');
+      }
+
+      if (!password.trim()) {
+        throw new Error('Password is required');
+      }
+
       // Check for demo admin login
-      if (email === 'admin@test.com') {
+      if (email === 'admin@gmail.com') {
         return this.demoUsers[0];
       }
 
@@ -83,8 +114,11 @@ class AuthService {
       const user = users.find((u: UserProfile) => u.email === email);
       
       if (!user) {
-        throw new Error('User not found. Please sign up first.');
+        throw new Error('No account found with this email address. Please sign up first.');
       }
+      
+      // For demo purposes, we'll accept any password for registered users
+      // In a real app, you'd verify the password here
       
       // Update last login
       user.lastLogin = new Date();
