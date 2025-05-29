@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +36,7 @@ const Dashboard = () => {
   useEffect(() => {
     const loadDashboardData = () => {
       const data = persistentStorage.getData();
+      console.log('Dashboard data loaded:', data);
       
       // Get upcoming classes (within next 7 days)
       const now = new Date();
@@ -45,19 +45,23 @@ const Dashboard = () => {
       
       const upcoming = data.scheduledClasses
         .filter(cls => {
-          const classDate = new Date(cls.date);
-          return classDate >= now && classDate <= nextWeek;
+          const classDate = new Date(`${cls.date} ${cls.time}`);
+          return classDate >= now;
         })
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .slice(0, 3);
+        .sort((a, b) => {
+          const dateA = new Date(`${a.date} ${a.time}`);
+          const dateB = new Date(`${b.date} ${b.time}`);
+          return dateA.getTime() - dateB.getTime();
+        })
+        .slice(0, 5);
       
+      console.log('Upcoming classes:', upcoming);
       setUpcomingClasses(upcoming);
 
       // Get recent assignments (due within next 14 days or recently created)
       const recent = data.assignments
         .filter(assignment => {
           const dueDate = new Date(assignment.dueDate);
-          const createdDate = new Date(assignment.createdAt || assignment.dueDate);
           const twoWeeksFromNow = new Date();
           twoWeeksFromNow.setDate(now.getDate() + 14);
           
@@ -96,8 +100,8 @@ const Dashboard = () => {
 
     loadDashboardData();
 
-    // Set up interval to refresh data every 30 seconds
-    const interval = setInterval(loadDashboardData, 30000);
+    // Set up interval to refresh data every 10 seconds
+    const interval = setInterval(loadDashboardData, 10000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -206,7 +210,7 @@ const Dashboard = () => {
               <Clock className="h-5 w-5 text-blue-600" />
               <span>Upcoming Classes</span>
             </CardTitle>
-            <CardDescription>Your scheduled classes for the coming week</CardDescription>
+            <CardDescription>Your scheduled classes</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -232,12 +236,15 @@ const Dashboard = () => {
                 <div className="text-center py-8">
                   <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">No upcoming classes scheduled</p>
+                  {user?.role === 'admin' && (
+                    <p className="text-sm text-gray-500 mt-2">Create classes in the Schedule section</p>
+                  )}
                 </div>
               )}
             </div>
             <Link to="/schedule">
               <Button variant="outline" className="w-full mt-4">
-                View All Classes
+                {user?.role === 'admin' ? 'Manage Classes' : 'View All Classes'}
               </Button>
             </Link>
           </CardContent>

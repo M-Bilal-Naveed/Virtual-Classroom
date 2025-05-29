@@ -171,9 +171,36 @@ const Attendance = () => {
   });
 
   const exportAttendance = () => {
+    const csvData = [
+      ['Student Name', 'Email', 'Class', 'Date', 'Status', 'Join Time', 'Leave Time'],
+      ...filteredRecords.map(record => [
+        record.studentName,
+        record.studentEmail,
+        record.className,
+        new Date(record.date).toLocaleDateString(),
+        record.status,
+        record.joinTime || 'N/A',
+        record.leaveTime || 'N/A'
+      ])
+    ];
+
+    const csvContent = csvData.map(row => 
+      row.map(field => `"${field}"`).join(',')
+    ).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     toast({
-      title: "Export started",
-      description: "Attendance data is being exported to CSV.",
+      title: "Export successful",
+      description: "Attendance data has been exported to CSV file.",
     });
   };
 
