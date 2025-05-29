@@ -124,11 +124,13 @@ const Dashboard = () => {
   const joinClass = (classItem: any) => {
     // Direct join with valid Zoom link
     window.open(classItem.meetLink, '_blank');
+    console.log('Joining Zoom meeting:', classItem.meetLink);
   };
 
   const startClass = (classItem: any) => {
     // For admin, open the Zoom meeting link directly
     window.open(classItem.meetLink, '_blank');
+    console.log('Starting Zoom meeting:', classItem.meetLink);
   };
 
   const isClassLive = (classDate: string, classTime: string) => {

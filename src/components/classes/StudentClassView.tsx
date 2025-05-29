@@ -40,6 +40,7 @@ const StudentClassView = () => {
   const joinClass = (classItem: ScheduledClass) => {
     // Open Zoom link in new tab
     window.open(classItem.meetLink, '_blank');
+    console.log('Joining Zoom meeting:', classItem.meetLink);
     toast({
       title: "Opening Zoom Meeting...",
       description: "The class meeting is opening in a new tab.",
@@ -190,6 +191,39 @@ const StudentClassView = () => {
       )}
     </div>
   );
+};
+
+const isClassLive = (classDate: string, classTime: string) => {
+  const classDateTime = new Date(`${classDate} ${classTime}`);
+  const now = new Date();
+  const classEndTime = new Date(classDateTime.getTime() + (60 * 60 * 1000)); // Assume 1 hour duration
+  
+  return now >= classDateTime && now <= classEndTime;
+};
+
+const isClassUpcoming = (classDate: string, classTime: string) => {
+  const classDateTime = new Date(`${classDate} ${classTime}`);
+  const now = new Date();
+  const oneHourBefore = new Date(classDateTime.getTime() - (60 * 60 * 1000));
+  
+  return now >= oneHourBefore && now < classDateTime;
+};
+
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+};
+
+const formatTime = (timeString: string) => {
+  return new Date(`1970-01-01T${timeString}`).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
 };
 
 export default StudentClassView;

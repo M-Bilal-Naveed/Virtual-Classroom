@@ -51,10 +51,11 @@ const ClassScheduler = () => {
   }, [scheduledClasses, user?.role]);
 
   const generateZoomLink = () => {
-    // Generate a valid Zoom meeting ID format (9-11 digits)
-    const meetingId = Math.floor(100000000 + Math.random() * 900000000); // 9-digit number
+    // Generate a valid 11-digit Zoom meeting ID
+    const meetingId = Math.floor(10000000000 + Math.random() * 90000000000); // 11-digit number
     const passcode = Math.floor(100000 + Math.random() * 900000); // 6-digit passcode
     
+    // Format: https://zoom.us/j/meetingid?pwd=passcode
     return `https://zoom.us/j/${meetingId}?pwd=${passcode}`;
   };
 
@@ -446,6 +447,22 @@ const ClassScheduler = () => {
       )}
     </div>
   );
+};
+
+const isClassLive = (classDate: string, classTime: string) => {
+  const classDateTime = new Date(`${classDate} ${classTime}`);
+  const now = new Date();
+  const classEndTime = new Date(classDateTime.getTime() + (60 * 60 * 1000)); // Assume 1 hour duration
+  
+  return now >= classDateTime && now <= classEndTime;
+};
+
+const isClassUpcoming = (classDate: string, classTime: string) => {
+  const classDateTime = new Date(`${classDate} ${classTime}`);
+  const now = new Date();
+  const oneHourBefore = new Date(classDateTime.getTime() - (60 * 60 * 1000));
+  
+  return now >= oneHourBefore && now < classDateTime;
 };
 
 export default ClassScheduler;
