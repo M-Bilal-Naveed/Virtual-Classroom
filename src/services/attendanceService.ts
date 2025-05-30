@@ -1,6 +1,5 @@
 
-import { collection, query, where, getDocs, addDoc, orderBy } from 'firebase/firestore';
-import { db } from './authService';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface AttendanceRecord {
   id?: string;
@@ -20,14 +19,20 @@ class AttendanceService {
     className: string
   ): Promise<void> {
     try {
-      await addDoc(collection(db, 'attendance'), {
+      // For now, store in localStorage until we create attendance table in Supabase
+      const attendance = {
         userId,
         userName,
         classId,
         className,
         timestamp: new Date(),
-        status: 'present'
-      });
+        status: 'present' as const
+      };
+      
+      const attendanceRecords = JSON.parse(localStorage.getItem('virtualClassroom_attendance') || '[]');
+      attendanceRecords.push(attendance);
+      localStorage.setItem('virtualClassroom_attendance', JSON.stringify(attendanceRecords));
+      
       console.log('Attendance marked successfully');
     } catch (error) {
       console.error('Error marking attendance:', error);
@@ -36,18 +41,14 @@ class AttendanceService {
 
   async getAttendanceByClass(classId: string): Promise<AttendanceRecord[]> {
     try {
-      const q = query(
-        collection(db, 'attendance'), 
-        where('classId', '==', classId),
-        orderBy('timestamp', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp.toDate()
-      })) as AttendanceRecord[];
+      const attendanceRecords = JSON.parse(localStorage.getItem('virtualClassroom_attendance') || '[]');
+      return attendanceRecords
+        .filter((record: any) => record.classId === classId)
+        .map((record: any) => ({
+          ...record,
+          timestamp: new Date(record.timestamp)
+        }))
+        .sort((a: any, b: any) => b.timestamp.getTime() - a.timestamp.getTime());
     } catch (error) {
       console.error('Error fetching attendance:', error);
       return [];
@@ -56,14 +57,13 @@ class AttendanceService {
 
   async getAllAttendance(): Promise<AttendanceRecord[]> {
     try {
-      const q = query(collection(db, 'attendance'), orderBy('timestamp', 'desc'));
-      const querySnapshot = await getDocs(q);
-      
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp.toDate()
-      })) as AttendanceRecord[];
+      const attendanceRecords = JSON.parse(localStorage.getItem('virtualClassroom_attendance') || '[]');
+      return attendanceRecords
+        .map((record: any) => ({
+          ...record,
+          timestamp: new Date(record.timestamp)
+        }))
+        .sort((a: any, b: any) => b.timestamp.getTime() - a.timestamp.getTime());
     } catch (error) {
       console.error('Error fetching all attendance:', error);
       return [];
