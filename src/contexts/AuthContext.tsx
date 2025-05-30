@@ -91,13 +91,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       console.log('Login attempt for:', email);
-      const userProfile = await authService.signIn(email, password);
-      console.log('Login successful, user profile:', userProfile);
+      await authService.signIn(email, password);
+      console.log('Login successful');
       // User state will be updated by the auth state listener
     } catch (error: any) {
       console.error('Login error in context:', error);
       setLoading(false);
-      throw new Error(error.message);
+      throw error;
     }
   };
 
@@ -105,13 +105,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       console.log('Signup attempt for:', email, name, role);
-      const userProfile = await authService.signUp(email, password, name, role);
-      console.log('Signup successful, user profile:', userProfile);
+      await authService.signUp(email, password, name, role);
+      console.log('Signup successful');
       // User state will be updated by the auth state listener
     } catch (error: any) {
       console.error('Signup error in context:', error);
       setLoading(false);
-      throw new Error(error.message);
+      throw error;
     }
   };
 

@@ -13,7 +13,7 @@ export interface UserProfile {
 }
 
 class AuthService {
-  async signUp(email: string, password: string, name: string, role: 'admin' | 'student'): Promise<UserProfile> {
+  async signUp(email: string, password: string, name: string, role: 'admin' | 'student'): Promise<void> {
     try {
       // Validate inputs
       if (!email.includes('@')) {
@@ -37,7 +37,8 @@ class AuthService {
           data: {
             name: name.trim(),
             role
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/`
         }
       });
 
@@ -51,26 +52,20 @@ class AuthService {
       }
 
       console.log('User created successfully:', data.user.id);
-
-      // Return user profile data
-      const userProfile: UserProfile = {
-        id: data.user.id,
-        email: data.user.email!,
-        name: name.trim(),
-        role,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-        createdAt: new Date(),
-        lastLogin: new Date()
-      };
-
-      return userProfile;
+      
+      // If user is immediately confirmed, they can login right away
+      if (data.user.email_confirmed_at) {
+        console.log('User email already confirmed');
+      } else {
+        console.log('Please check your email to confirm your account');
+      }
     } catch (error: any) {
       console.error('Signup error:', error);
       throw new Error(error.message || 'Signup failed');
     }
   }
 
-  async signIn(email: string, password: string): Promise<UserProfile> {
+  async signIn(email: string, password: string): Promise<void> {
     try {
       if (!email.trim()) {
         throw new Error('Email is required');
@@ -97,31 +92,6 @@ class AuthService {
       }
 
       console.log('User signed in successfully:', data.user.id);
-
-      // Get user profile from profiles table
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profileError || !profile) {
-        console.error('Profile fetch error:', profileError);
-        throw new Error('Failed to load user profile');
-      }
-
-      const userProfile: UserProfile = {
-        id: profile.id,
-        email: data.user.email!,
-        name: profile.name,
-        role: profile.role as 'admin' | 'student',
-        avatar: profile.avatar,
-        createdAt: new Date(profile.created_at),
-        lastLogin: new Date()
-      };
-
-      console.log('User profile loaded:', userProfile);
-      return userProfile;
     } catch (error: any) {
       console.error('Login error:', error);
       throw new Error(error.message || 'Login failed');

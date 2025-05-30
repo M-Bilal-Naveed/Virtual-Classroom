@@ -101,8 +101,8 @@ const Login = () => {
       
       if (error.message.includes('Invalid login credentials')) {
         setLoginErrors({ email: 'Invalid email or password' });
-      } else if (error.message.includes('invalid-email')) {
-        setLoginErrors({ email: 'Invalid email format' });
+      } else if (error.message.includes('Email not confirmed')) {
+        setLoginErrors({ email: 'Please confirm your email before logging in' });
       } else {
         setLoginErrors({ password: 'Login failed. Please try again.' });
       }
@@ -122,12 +122,18 @@ const Login = () => {
     try {
       console.log('Signup form submission:', signupForm.email, signupForm.name, signupForm.role);
       await signup(signupForm.email, signupForm.password, signupForm.name, signupForm.role);
+      
       toast({
         title: "Account created successfully!",
         description: "Welcome to Virtual Classroom! You can now access all features.",
       });
+      
       // Clear form after successful signup
       setSignupForm({ email: '', password: '', name: '', role: 'student' });
+      
+      // Switch to login tab after successful signup
+      setActiveTab('login');
+      
     } catch (error: any) {
       console.error('Signup error in component:', error);
       toast({
@@ -372,7 +378,7 @@ const Login = () => {
                 <strong className="text-green-300">Student:</strong> Join classes, submit assignments, download materials, participate in chat
               </div>
               <div className="mt-3 p-2 bg-white/5 rounded">
-                <strong className="text-blue-300">Getting Started:</strong> Create an account to begin using the Virtual Classroom
+                <strong className="text-blue-300">Note:</strong> After signup, you can login immediately and access the dashboard
               </div>
             </div>
           </CardContent>
