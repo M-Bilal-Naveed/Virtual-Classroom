@@ -1,22 +1,6 @@
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, User } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
-
-// Demo Firebase configuration - works for development
-const firebaseConfig = {
-  apiKey: "demo-api-key",
-  authDomain: "demo-project.firebaseapp.com",
-  projectId: "demo-project-id",
-  storageBucket: "demo-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "demo-app-id"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+import { supabase } from '@/integrations/supabase/client';
+import type { User, Session } from '@supabase/supabase-js';
 
 export interface UserProfile {
   id: string;
@@ -29,53 +13,47 @@ export interface UserProfile {
 }
 
 class AuthService {
-  // Demo users for testing
-  private demoUsers: UserProfile[] = [
-    {
-      id: 'demo-admin',
-      email: 'admin@gmail.com',
-      name: 'Admin User',
-      role: 'admin',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin@gmail.com',
-      createdAt: new Date(),
-      lastLogin: new Date()
-    }
-  ];
-
   async signUp(email: string, password: string, name: string, role: 'admin' | 'student'): Promise<UserProfile> {
     try {
-      // Check if it's a demo login
-      if (email === 'admin@gmail.com') {
-        return this.demoUsers[0];
-      }
-
-      // Validate email format
+      // Validate inputs
       if (!email.includes('@')) {
         throw new Error('Please enter a valid email address');
       }
 
-      // Validate password
       if (password.length < 6) {
         throw new Error('Password must be at least 6 characters long');
       }
 
-      // Validate name
       if (name.trim().length < 2) {
         throw new Error('Name must be at least 2 characters long');
       }
 
-      // Check if user already exists
-      const existingUsers = JSON.parse(localStorage.getItem('virtualClassroom_users') || '[]');
-      const existingUser = existingUsers.find((u: UserProfile) => u.email === email);
-      
-      if (existingUser) {
-        throw new Error('An account with this email already exists. Please login instead.');
+      const redirectUrl = `${window.location.origin}/`;
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            name: name.trim(),
+            role
+          }
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      // For demo purposes, create a mock user profile
+      if (!data.user) {
+        throw new Error('Failed to create user account');
+      }
+
+      // Return user profile data
       const userProfile: UserProfile = {
-        id: `user-${Date.now()}`,
-        email,
+        id: data.user.id,
+        email: data.user.email!,
         name: name.trim(),
         role,
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
@@ -83,19 +61,15 @@ class AuthService {
         lastLogin: new Date()
       };
 
-      // Store in localStorage for persistence
-      const users = [...existingUsers, userProfile];
-      localStorage.setItem('virtualClassroom_users', JSON.stringify(users));
-      
       return userProfile;
     } catch (error: any) {
+      console.error('Signup error:', error);
       throw new Error(error.message || 'Signup failed');
     }
   }
 
   async signIn(email: string, password: string): Promise<UserProfile> {
     try {
-      // Validate inputs
       if (!email.trim()) {
         throw new Error('Email is required');
       }
@@ -104,36 +78,53 @@ class AuthService {
         throw new Error('Password is required');
       }
 
-      // Check for demo admin login
-      if (email === 'admin@gmail.com') {
-        return this.demoUsers[0];
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
 
-      // Check localStorage for existing users
-      const users = JSON.parse(localStorage.getItem('virtualClassroom_users') || '[]');
-      const user = users.find((u: UserProfile) => u.email === email);
-      
-      if (!user) {
-        throw new Error('No account found with this email address. Please sign up first.');
+      if (!data.user) {
+        throw new Error('Login failed');
       }
-      
-      // For demo purposes, we'll accept any password for registered users
-      // In a real app, you'd verify the password here
-      
-      // Update last login
-      user.lastLogin = new Date();
-      const updatedUsers = users.map((u: UserProfile) => u.email === email ? user : u);
-      localStorage.setItem('virtualClassroom_users', JSON.stringify(updatedUsers));
-      
-      return user;
+
+      // Get user profile from profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile fetch error:', profileError);
+        throw new Error('Failed to load user profile');
+      }
+
+      const userProfile: UserProfile = {
+        id: profile.id,
+        email: data.user.email!,
+        name: profile.name,
+        role: profile.role as 'admin' | 'student',
+        avatar: profile.avatar,
+        createdAt: new Date(profile.created_at),
+        lastLogin: new Date()
+      };
+
+      return userProfile;
     } catch (error: any) {
+      console.error('Login error:', error);
       throw new Error(error.message || 'Login failed');
     }
   }
 
   async signOut(): Promise<void> {
-    // Clear current user session
-    localStorage.removeItem('virtualClassroom_currentUser');
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 
   async recordAttendance(userId: string, classId: string, userName: string): Promise<void> {
@@ -146,7 +137,7 @@ class AuthService {
         status: 'present'
       };
       
-      // Store in localStorage
+      // Store in localStorage for now (can be moved to Supabase later)
       const attendanceRecords = JSON.parse(localStorage.getItem('virtualClassroom_attendance') || '[]');
       attendanceRecords.push(attendance);
       localStorage.setItem('virtualClassroom_attendance', JSON.stringify(attendanceRecords));

@@ -95,8 +95,7 @@ const Login = () => {
         variant: "destructive",
       });
       
-      // Set specific error based on error message
-      if (error.message.includes('user-not-found') || error.message.includes('wrong-password')) {
+      if (error.message.includes('Invalid login credentials')) {
         setLoginErrors({ email: 'Invalid email or password' });
       } else if (error.message.includes('invalid-email')) {
         setLoginErrors({ email: 'Invalid email format' });
@@ -117,7 +116,7 @@ const Login = () => {
       await signup(signupForm.email, signupForm.password, signupForm.name, signupForm.role);
       toast({
         title: "Account created!",
-        description: "Welcome to Virtual Classroom.",
+        description: "Welcome to Virtual Classroom. Please check your email to verify your account.",
       });
     } catch (error: any) {
       console.error('Signup error:', error);
@@ -127,8 +126,7 @@ const Login = () => {
         variant: "destructive",
       });
       
-      // Set specific error based on error message
-      if (error.message.includes('email-already-in-use')) {
+      if (error.message.includes('User already registered')) {
         setSignupErrors({ email: 'This email is already registered' });
       } else if (error.message.includes('weak-password')) {
         setSignupErrors({ password: 'Password is too weak' });
@@ -229,9 +227,6 @@ const Login = () => {
                   >
                     {loading ? 'Signing in...' : 'Sign In'}
                   </Button>
-                  <div className="text-center text-sm text-white/60">
-                    Demo: Use 'admin@test.com' for admin access
-                  </div>
                 </form>
               </TabsContent>
 
@@ -331,7 +326,6 @@ const Login = () => {
           </CardContent>
         </Card>
 
-        {/* System Guide */}
         <Card className="mt-6 backdrop-blur-sm bg-white/10 border-white/20">
           <CardContent className="p-4">
             <h3 className="text-white font-semibold mb-2">🚀 System Guide</h3>
@@ -343,7 +337,7 @@ const Login = () => {
                 <strong className="text-green-300">Student:</strong> Join classes, submit assignments, download materials, participate in chat
               </div>
               <div className="mt-3 p-2 bg-white/5 rounded">
-                <strong className="text-blue-300">Quick Demo:</strong> Use 'admin@test.com' with any password for instant admin access
+                <strong className="text-blue-300">Getting Started:</strong> Create an account to begin using the Virtual Classroom
               </div>
             </div>
           </CardContent>
