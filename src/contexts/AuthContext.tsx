@@ -9,7 +9,7 @@ interface AuthContextType {
   session: Session | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string, role: 'admin' | 'student') => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
 }
 
@@ -29,6 +29,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('Setting up auth state listener...');
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -36,26 +38,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(session);
         
         if (session?.user) {
-          // Get user profile from profiles table
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
+          // Fetch user profile from profiles table
+          try {
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
 
-          if (profile && !error) {
-            const userProfile: UserProfile = {
-              id: profile.id,
-              email: session.user.email!,
-              name: profile.name,
-              role: profile.role as 'admin' | 'student',
-              avatar: profile.avatar,
-              createdAt: new Date(profile.created_at),
-              lastLogin: new Date()
-            };
-            setUser(userProfile);
-          } else {
-            console.error('Failed to load profile:', error);
+            if (profile && !error) {
+              const userProfile: UserProfile = {
+                id: profile.id,
+                email: session.user.email!,
+                name: profile.name,
+                role: profile.role as 'admin' | 'student',
+                avatar: profile.avatar,
+                createdAt: new Date(profile.created_at),
+                lastLogin: new Date()
+              };
+              console.log('User profile loaded in auth listener:', userProfile);
+              setUser(userProfile);
+            } else {
+              console.error('Failed to load profile in auth listener:', error);
+              setUser(null);
+            }
+          } catch (error) {
+            console.error('Error fetching profile in auth listener:', error);
+            setUser(null);
           }
         } else {
           setUser(null);
@@ -72,16 +81,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('Cleaning up auth subscription');
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
+      console.log('Login attempt for:', email);
       const userProfile = await authService.signIn(email, password);
+      console.log('Login successful, user profile:', userProfile);
       // User state will be updated by the auth state listener
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('Login error in context:', error);
       setLoading(false);
       throw new Error(error.message);
     }
@@ -90,10 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (email: string, password: string, name: string, role: 'admin' | 'student') => {
     setLoading(true);
     try {
+      console.log('Signup attempt for:', email, name, role);
       const userProfile = await authService.signUp(email, password, name, role);
+      console.log('Signup successful, user profile:', userProfile);
       // User state will be updated by the auth state listener
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error('Signup error in context:', error);
       setLoading(false);
       throw new Error(error.message);
     }
@@ -101,9 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
+      console.log('Logout attempt');
       await authService.signOut();
       setUser(null);
       setSession(null);
+      console.log('Logout successful');
     } catch (error) {
       console.error('Logout error:', error);
     }

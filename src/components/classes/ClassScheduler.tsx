@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { persistentStorage } from '../../utils/persistentStorage';
+import { videoConferenceService } from '../../services/videoConferenceService';
 import { Calendar, Clock, Users, Video, Plus, Edit2, Trash2, ExternalLink } from 'lucide-react';
 
 interface ScheduledClass {
@@ -50,22 +50,19 @@ const ClassScheduler = () => {
     }
   }, [scheduledClasses, user?.role]);
 
-  const generateZoomLink = () => {
-    // Generate a valid 11-digit Zoom meeting ID
-    const meetingId = Math.floor(10000000000 + Math.random() * 90000000000); // 11-digit number
-    const passcode = Math.floor(100000 + Math.random() * 900000); // 6-digit passcode
-    
-    // Format: https://zoom.us/j/meetingid?pwd=passcode
-    return `https://zoom.us/j/${meetingId}?pwd=${passcode}`;
+  const generateMeetingLink = (classId: string, title: string) => {
+    // Use the new video conference service to create a Jitsi meeting
+    return videoConferenceService.createDirectMeetingUrl(classId, title);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    const classId = editingClass ? editingClass.id : Date.now().toString();
     const classData: ScheduledClass = {
-      id: editingClass ? editingClass.id : Date.now().toString(),
+      id: classId,
       ...formData,
-      meetLink: editingClass ? editingClass.meetLink : generateZoomLink(),
+      meetLink: editingClass ? editingClass.meetLink : generateMeetingLink(classId, formData.title),
       students: editingClass ? editingClass.students : []
     };
 
@@ -79,7 +76,7 @@ const ClassScheduler = () => {
       setScheduledClasses(prev => [...prev, classData]);
       toast({
         title: "Class scheduled successfully!",
-        description: "The class has been scheduled with a valid Zoom meeting link.",
+        description: "The class has been scheduled with a video conference link.",
       });
     }
 
@@ -109,37 +106,19 @@ const ClassScheduler = () => {
   };
 
   const joinClass = (classItem: ScheduledClass) => {
-    // Open Zoom link in new tab
-    window.open(classItem.meetLink, '_blank');
+    videoConferenceService.joinMeeting(classItem.meetLink);
     toast({
-      title: "Opening Zoom Meeting...",
-      description: "The class meeting is opening in a new tab.",
+      title: "Opening Video Conference...",
+      description: "The class meeting is opening in a new window.",
     });
   };
 
   const startClass = (classItem: ScheduledClass) => {
-    // For admin, open the meeting link directly
-    window.open(classItem.meetLink, '_blank');
+    videoConferenceService.startMeeting(classItem.meetLink);
     toast({
       title: "Starting class...",
-      description: "Opening Zoom meeting for your class.",
+      description: "Opening video conference for your class.",
     });
-  };
-
-  const isClassLive = (classDate: string, classTime: string) => {
-    const classDateTime = new Date(`${classDate} ${classTime}`);
-    const now = new Date();
-    const classEndTime = new Date(classDateTime.getTime() + (60 * 60 * 1000)); // Assume 1 hour duration
-    
-    return now >= classDateTime && now <= classEndTime;
-  };
-
-  const isClassUpcoming = (classDate: string, classTime: string) => {
-    const classDateTime = new Date(`${classDate} ${classTime}`);
-    const now = new Date();
-    const oneHourBefore = new Date(classDateTime.getTime() - (60 * 60 * 1000));
-    
-    return now >= oneHourBefore && now < classDateTime;
   };
 
   // Student view - just show classes
@@ -148,7 +127,7 @@ const ClassScheduler = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Available Classes</h1>
-          <p className="text-gray-600">Join your scheduled classes and participate in live sessions via Zoom</p>
+          <p className="text-gray-600">Join your scheduled classes and participate in live video sessions</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -219,7 +198,7 @@ const ClassScheduler = () => {
                         navigator.clipboard.writeText(classItem.meetLink);
                         toast({
                           title: "Link copied!",
-                          description: "The Zoom meeting link has been copied to your clipboard.",
+                          description: "The meeting link has been copied to your clipboard.",
                         });
                       }}
                     >
@@ -265,7 +244,7 @@ const ClassScheduler = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Class Scheduler</h1>
-          <p className="text-gray-600">Schedule and manage your virtual classes with valid Zoom meeting links</p>
+          <p className="text-gray-600">Schedule and manage your virtual classes with video conferencing</p>
         </div>
         <Button 
           onClick={() => setShowForm(true)}
@@ -284,7 +263,7 @@ const ClassScheduler = () => {
               <span>{editingClass ? 'Edit Class' : 'Schedule New Class'}</span>
             </CardTitle>
             <CardDescription>
-              {editingClass ? 'Update class details' : 'Create a new virtual class with automatic Zoom integration'}
+              {editingClass ? 'Update class details' : 'Create a new virtual class with video conferencing'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -400,7 +379,7 @@ const ClassScheduler = () => {
                 <div className="flex items-center space-x-3 text-sm text-gray-600">
                   <Video className="h-4 w-4" />
                   <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded break-all">
-                    {classItem.meetLink}
+                    Jitsi Meeting Room
                   </span>
                 </div>
               </div>
@@ -420,7 +399,7 @@ const ClassScheduler = () => {
                     navigator.clipboard.writeText(classItem.meetLink);
                     toast({
                       title: "Link copied!",
-                      description: "The Zoom meeting link has been copied to your clipboard.",
+                      description: "The meeting link has been copied to your clipboard.",
                     });
                   }}
                 >

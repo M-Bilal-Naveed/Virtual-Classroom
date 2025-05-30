@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { GraduationCap, Users, BookOpen, AlertCircle } from 'lucide-react';
+import { GraduationCap, Users, BookOpen, AlertCircle, Loader2 } from 'lucide-react';
 
 interface FormErrors {
   name?: string;
@@ -22,6 +22,8 @@ const Login = () => {
   const [activeTab, setActiveTab] = useState('login');
   const [loginErrors, setLoginErrors] = useState<FormErrors>({});
   const [signupErrors, setSignupErrors] = useState<FormErrors>({});
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
   const { login, signup, loading } = useAuth();
   const { toast } = useToast();
 
@@ -81,14 +83,16 @@ const Login = () => {
       return;
     }
 
+    setLoginLoading(true);
     try {
+      console.log('Login form submission:', loginForm.email);
       await login(loginForm.email, loginForm.password);
       toast({
         title: "Welcome back!",
-        description: "You have successfully logged in.",
+        description: "You have successfully logged in to Virtual Classroom.",
       });
     } catch (error: any) {
-      console.error('Login error:', error);
+      console.error('Login error in component:', error);
       toast({
         title: "Login failed",
         description: error.message || "Please check your credentials and try again.",
@@ -102,6 +106,8 @@ const Login = () => {
       } else {
         setLoginErrors({ password: 'Login failed. Please try again.' });
       }
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -112,14 +118,18 @@ const Login = () => {
       return;
     }
 
+    setSignupLoading(true);
     try {
+      console.log('Signup form submission:', signupForm.email, signupForm.name, signupForm.role);
       await signup(signupForm.email, signupForm.password, signupForm.name, signupForm.role);
       toast({
-        title: "Account created!",
-        description: "Welcome to Virtual Classroom. Please check your email to verify your account.",
+        title: "Account created successfully!",
+        description: "Welcome to Virtual Classroom! You can now access all features.",
       });
+      // Clear form after successful signup
+      setSignupForm({ email: '', password: '', name: '', role: 'student' });
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error('Signup error in component:', error);
       toast({
         title: "Signup failed",
         description: error.message || "Please try again with different credentials.",
@@ -135,6 +145,8 @@ const Login = () => {
       } else {
         setSignupErrors({ email: 'Signup failed. Please try again.' });
       }
+    } finally {
+      setSignupLoading(false);
     }
   };
 
@@ -192,6 +204,7 @@ const Login = () => {
                       className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
                         loginErrors.email ? 'border-red-500' : ''
                       }`}
+                      disabled={loginLoading || loading}
                     />
                     {loginErrors.email && (
                       <div className="flex items-center gap-1 text-red-400 text-sm">
@@ -212,6 +225,7 @@ const Login = () => {
                       className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
                         loginErrors.password ? 'border-red-500' : ''
                       }`}
+                      disabled={loginLoading || loading}
                     />
                     {loginErrors.password && (
                       <div className="flex items-center gap-1 text-red-400 text-sm">
@@ -223,9 +237,16 @@ const Login = () => {
                   <Button 
                     type="submit" 
                     className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                    disabled={loading}
+                    disabled={loginLoading || loading}
                   >
-                    {loading ? 'Signing in...' : 'Sign In'}
+                    {loginLoading || loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Signing in...
+                      </>
+                    ) : (
+                      'Sign In'
+                    )}
                   </Button>
                 </form>
               </TabsContent>
@@ -244,6 +265,7 @@ const Login = () => {
                       className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
                         signupErrors.name ? 'border-red-500' : ''
                       }`}
+                      disabled={signupLoading || loading}
                     />
                     {signupErrors.name && (
                       <div className="flex items-center gap-1 text-red-400 text-sm">
@@ -264,6 +286,7 @@ const Login = () => {
                       className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
                         signupErrors.email ? 'border-red-500' : ''
                       }`}
+                      disabled={signupLoading || loading}
                     />
                     {signupErrors.email && (
                       <div className="flex items-center gap-1 text-red-400 text-sm">
@@ -284,6 +307,7 @@ const Login = () => {
                       className={`bg-white/10 border-white/20 text-white placeholder:text-white/60 ${
                         signupErrors.password ? 'border-red-500' : ''
                       }`}
+                      disabled={signupLoading || loading}
                     />
                     {signupErrors.password && (
                       <div className="flex items-center gap-1 text-red-400 text-sm">
@@ -293,7 +317,11 @@ const Login = () => {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Select value={signupForm.role} onValueChange={(value: 'admin' | 'student') => setSignupForm({ ...signupForm, role: value })}>
+                    <Select 
+                      value={signupForm.role} 
+                      onValueChange={(value: 'admin' | 'student') => setSignupForm({ ...signupForm, role: value })}
+                      disabled={signupLoading || loading}
+                    >
                       <SelectTrigger className="bg-white/10 border-white/20 text-white">
                         <SelectValue />
                       </SelectTrigger>
@@ -316,9 +344,16 @@ const Login = () => {
                   <Button 
                     type="submit" 
                     className="w-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
-                    disabled={loading}
+                    disabled={signupLoading || loading}
                   >
-                    {loading ? 'Creating account...' : 'Create Account'}
+                    {signupLoading || loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating account...
+                      </>
+                    ) : (
+                      'Create Account'
+                    )}
                   </Button>
                 </form>
               </TabsContent>

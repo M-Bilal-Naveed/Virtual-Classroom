@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '../../contexts/AuthContext';
 import { persistentStorage } from '../../utils/persistentStorage';
 import { attendanceService } from '../../services/attendanceService';
+import { videoConferenceService } from '../../services/videoConferenceService';
 import { 
   Calendar, 
   Video, 
@@ -122,15 +123,15 @@ const Dashboard = () => {
   };
 
   const joinClass = (classItem: any) => {
-    // Direct join with valid Zoom link
-    window.open(classItem.meetLink, '_blank');
-    console.log('Joining Zoom meeting:', classItem.meetLink);
+    // Use the video conference service to join
+    videoConferenceService.joinMeeting(classItem.meetLink);
+    console.log('Joining video meeting:', classItem.meetLink);
   };
 
   const startClass = (classItem: any) => {
-    // For admin, open the Zoom meeting link directly
-    window.open(classItem.meetLink, '_blank');
-    console.log('Starting Zoom meeting:', classItem.meetLink);
+    // For admin, use the video conference service to start
+    videoConferenceService.startMeeting(classItem.meetLink);
+    console.log('Starting video meeting:', classItem.meetLink);
   };
 
   const isClassLive = (classDate: string, classTime: string) => {
@@ -231,7 +232,7 @@ const Dashboard = () => {
               <span>{user?.role === 'admin' ? 'Scheduled Classes' : 'Available Classes'}</span>
             </CardTitle>
             <CardDescription>
-              {user?.role === 'admin' ? 'Your scheduled classes' : 'Classes you can join via Zoom'}
+              {user?.role === 'admin' ? 'Your scheduled classes' : 'Classes you can join via video conference'}
             </CardDescription>
           </CardHeader>
           <CardContent>

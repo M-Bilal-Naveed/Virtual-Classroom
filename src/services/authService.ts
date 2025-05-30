@@ -28,13 +28,12 @@ class AuthService {
         throw new Error('Name must be at least 2 characters long');
       }
 
-      const redirectUrl = `${window.location.origin}/`;
+      console.log('Starting signup process...', { email, name, role });
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: redirectUrl,
           data: {
             name: name.trim(),
             role
@@ -43,12 +42,15 @@ class AuthService {
       });
 
       if (error) {
+        console.error('Supabase signup error:', error);
         throw new Error(error.message);
       }
 
       if (!data.user) {
         throw new Error('Failed to create user account');
       }
+
+      console.log('User created successfully:', data.user.id);
 
       // Return user profile data
       const userProfile: UserProfile = {
@@ -78,18 +80,23 @@ class AuthService {
         throw new Error('Password is required');
       }
 
+      console.log('Starting signin process...', { email });
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
+        console.error('Supabase signin error:', error);
         throw new Error(error.message);
       }
 
       if (!data.user) {
         throw new Error('Login failed');
       }
+
+      console.log('User signed in successfully:', data.user.id);
 
       // Get user profile from profiles table
       const { data: profile, error: profileError } = await supabase
@@ -113,6 +120,7 @@ class AuthService {
         lastLogin: new Date()
       };
 
+      console.log('User profile loaded:', userProfile);
       return userProfile;
     } catch (error: any) {
       console.error('Login error:', error);
@@ -121,9 +129,49 @@ class AuthService {
   }
 
   async signOut(): Promise<void> {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw new Error(error.message);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw new Error(error.message);
+      }
+      console.log('User signed out successfully');
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      throw new Error(error.message || 'Logout failed');
+    }
+  }
+
+  async getCurrentUser(): Promise<UserProfile | null> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        return null;
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if (error || !profile) {
+        console.error('Profile fetch error:', error);
+        return null;
+      }
+
+      return {
+        id: profile.id,
+        email: session.user.email!,
+        name: profile.name,
+        role: profile.role as 'admin' | 'student',
+        avatar: profile.avatar,
+        createdAt: new Date(profile.created_at),
+        lastLogin: new Date()
+      };
+    } catch (error) {
+      console.error('Get current user error:', error);
+      return null;
     }
   }
 }

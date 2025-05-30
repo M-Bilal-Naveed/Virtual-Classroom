@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { persistentStorage } from '../../utils/persistentStorage';
+import { videoConferenceService } from '../../services/videoConferenceService';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, 
@@ -38,12 +38,11 @@ const StudentClassView = () => {
   }, []);
 
   const joinClass = (classItem: ScheduledClass) => {
-    // Open Zoom link in new tab
-    window.open(classItem.meetLink, '_blank');
-    console.log('Joining Zoom meeting:', classItem.meetLink);
+    // Use the video conference service to join the meeting
+    videoConferenceService.joinMeeting(classItem.meetLink);
     toast({
-      title: "Opening Zoom Meeting...",
-      description: "The class meeting is opening in a new tab.",
+      title: "Opening Video Conference...",
+      description: "The class meeting is opening in a new window.",
     });
   };
 
@@ -84,7 +83,7 @@ const StudentClassView = () => {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Available Classes</h1>
-        <p className="text-gray-600">Join your scheduled classes and participate in live sessions via Zoom</p>
+        <p className="text-gray-600">Join your scheduled classes and participate in live video sessions</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -166,7 +165,7 @@ const StudentClassView = () => {
                       navigator.clipboard.writeText(classItem.meetLink);
                       toast({
                         title: "Link copied!",
-                        description: "The Zoom meeting link has been copied to your clipboard.",
+                        description: "The meeting link has been copied to your clipboard.",
                       });
                     }}
                   >
