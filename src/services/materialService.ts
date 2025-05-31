@@ -99,7 +99,24 @@ class MaterialService {
   }
 
   async incrementDownload(id: string): Promise<void> {
-    const { error } = await supabase.rpc('increment_material_downloads', { material_id: id });
+    // Get current download count and increment it
+    const { data: currentMaterial, error: fetchError } = await supabase
+      .from('materials')
+      .select('downloads')
+      .eq('id', id)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching current downloads:', fetchError);
+      return;
+    }
+
+    const newDownloadCount = (currentMaterial.downloads || 0) + 1;
+
+    const { error } = await supabase
+      .from('materials')
+      .update({ downloads: newDownloadCount })
+      .eq('id', id);
     
     if (error) {
       console.error('Error incrementing download count:', error);
