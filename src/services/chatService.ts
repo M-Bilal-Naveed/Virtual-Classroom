@@ -14,29 +14,55 @@ export interface ChatMessageWithProfile extends ChatMessage {
 
 class ChatService {
   async getMessages(): Promise<ChatMessageWithProfile[]> {
-    const { data, error } = await supabase
+    // First, get all chat messages
+    const { data: messages, error: messagesError } = await supabase
       .from('chat_messages')
-      .select(`
-        *,
-        profiles (name, avatar)
-      `)
+      .select('*')
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching messages:', error);
-      throw new Error(error.message);
+    if (messagesError) {
+      console.error('Error fetching messages:', messagesError);
+      throw new Error(messagesError.message);
     }
 
-    return data as ChatMessageWithProfile[];
+    if (!messages || messages.length === 0) {
+      return [];
+    }
+
+    // Get unique user IDs
+    const userIds = [...new Set(messages.map(msg => msg.user_id))];
+
+    // Fetch profiles for all unique users
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, name, avatar')
+      .in('id', userIds);
+
+    if (profilesError) {
+      console.error('Error fetching profiles:', profilesError);
+      // Continue without profiles rather than throwing an error
+    }
+
+    // Combine messages with their profile data
+    const messagesWithProfiles: ChatMessageWithProfile[] = messages.map(message => ({
+      ...message,
+      profiles: profiles?.find(profile => profile.id === message.user_id) || null
+    }));
+
+    return messagesWithProfiles;
   }
 
   async sendMessage(message: string, messageType: string = 'text'): Promise<ChatMessage> {
     const user = (await supabase.auth.getUser()).data.user;
     
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+    
     const { data, error } = await supabase
       .from('chat_messages')
       .insert({
-        user_id: user?.id!,
+        user_id: user.id,
         message,
         message_type: messageType
       })
@@ -64,17 +90,26 @@ class ChatService {
         },
         async (payload) => {
           // Fetch the complete message with profile data
-          const { data } = await supabase
+          const { data: message } = await supabase
             .from('chat_messages')
-            .select(`
-              *,
-              profiles (name, avatar)
-            `)
+            .select('*')
             .eq('id', payload.new.id)
             .single();
           
-          if (data) {
-            callback(data as ChatMessageWithProfile);
+          if (message) {
+            // Fetch the profile separately
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('name, avatar')
+              .eq('id', message.user_id)
+              .single();
+            
+            const messageWithProfile: ChatMessageWithProfile = {
+              ...message,
+              profiles: profile || null
+            };
+            
+            callback(messageWithProfile);
           }
         }
       )
