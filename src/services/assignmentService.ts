@@ -87,7 +87,7 @@ class AssignmentService {
     // Upload file if provided
     if (submission.file) {
       const user = (await supabase.auth.getUser()).data.user;
-      const filePath = `${user?.id}/${submission.assignmentId}/${submission.file.name}`;
+      const filePath = `submissions/${user?.id}/${submission.assignmentId}/${submission.file.name}`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('classroom-files')
