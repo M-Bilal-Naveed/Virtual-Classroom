@@ -19,8 +19,6 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
-  console.log('ProtectedRoute - user:', user, 'loading:', loading);
-  
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
@@ -38,8 +36,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AppContent = () => {
   const { user, loading } = useAuth();
 
-  console.log('AppContent - user:', user, 'loading:', loading);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
@@ -54,8 +50,14 @@ const AppContent = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
       <Routes>
-        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
-        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+        <Route 
+          path="/login" 
+          element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
+        />
+        <Route 
+          path="/" 
+          element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} 
+        />
         <Route
           path="/dashboard"
           element={

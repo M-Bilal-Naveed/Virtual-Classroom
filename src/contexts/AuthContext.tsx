@@ -31,40 +31,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     console.log('Setting up auth state listener...');
     
-    // Set up auth state listener FIRST
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         
         if (session?.user) {
-          // Fetch user profile from profiles table
-          try {
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
+          // Fetch user profile
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-            if (profile && !error) {
-              const userProfile: UserProfile = {
-                id: profile.id,
-                email: session.user.email!,
-                name: profile.name,
-                role: profile.role as 'admin' | 'student',
-                avatar: profile.avatar,
-                createdAt: new Date(profile.created_at),
-                lastLogin: new Date()
-              };
-              console.log('User profile loaded in auth listener:', userProfile);
-              setUser(userProfile);
-            } else {
-              console.error('Failed to load profile in auth listener:', error);
-              setUser(null);
-            }
-          } catch (error) {
-            console.error('Error fetching profile in auth listener:', error);
-            setUser(null);
+          if (profile) {
+            const userProfile: UserProfile = {
+              id: profile.id,
+              email: session.user.email!,
+              name: profile.name,
+              role: profile.role as 'admin' | 'student',
+              avatar: profile.avatar,
+              createdAt: new Date(profile.created_at),
+              lastLogin: new Date()
+            };
+            console.log('User profile loaded:', userProfile);
+            setUser(userProfile);
           }
         } else {
           setUser(null);
@@ -73,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // THEN check for existing session
+    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check:', session?.user?.email);
       if (!session) {
@@ -81,50 +73,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
-    return () => {
-      console.log('Cleaning up auth subscription');
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
-    setLoading(true);
-    try {
-      console.log('Login attempt for:', email);
-      await authService.signIn(email, password);
-      console.log('Login successful');
-      // User state will be updated by the auth state listener
-    } catch (error: any) {
-      console.error('Login error in context:', error);
-      setLoading(false);
-      throw error;
-    }
+    await authService.signIn(email, password);
   };
 
   const signup = async (email: string, password: string, name: string, role: 'admin' | 'student') => {
-    setLoading(true);
-    try {
-      console.log('Signup attempt for:', email, name, role);
-      await authService.signUp(email, password, name, role);
-      console.log('Signup successful');
-      // User state will be updated by the auth state listener
-    } catch (error: any) {
-      console.error('Signup error in context:', error);
-      setLoading(false);
-      throw error;
-    }
+    await authService.signUp(email, password, name, role);
   };
 
   const logout = async () => {
-    try {
-      console.log('Logout attempt');
-      await authService.signOut();
-      setUser(null);
-      setSession(null);
-      console.log('Logout successful');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    await authService.signOut();
+    setUser(null);
+    setSession(null);
   };
 
   return (

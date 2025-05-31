@@ -14,101 +14,57 @@ export interface UserProfile {
 
 class AuthService {
   async signUp(email: string, password: string, name: string, role: 'admin' | 'student'): Promise<void> {
-    try {
-      // Validate inputs
-      if (!email.includes('@')) {
-        throw new Error('Please enter a valid email address');
-      }
+    console.log('Starting signup process...', { email, name, role });
 
-      if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
-      }
-
-      if (name.trim().length < 2) {
-        throw new Error('Name must be at least 2 characters long');
-      }
-
-      console.log('Starting signup process...', { email, name, role });
-
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: name.trim(),
-            role
-          },
-          emailRedirectTo: `${window.location.origin}/`
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name.trim(),
+          role
         }
-      });
-
-      if (error) {
-        console.error('Supabase signup error:', error);
-        throw new Error(error.message);
       }
+    });
 
-      if (!data.user) {
-        throw new Error('Failed to create user account');
-      }
-
-      console.log('User created successfully:', data.user.id);
-      
-      // If user is immediately confirmed, they can login right away
-      if (data.user.email_confirmed_at) {
-        console.log('User email already confirmed');
-      } else {
-        console.log('Please check your email to confirm your account');
-      }
-    } catch (error: any) {
-      console.error('Signup error:', error);
-      throw new Error(error.message || 'Signup failed');
+    if (error) {
+      console.error('Supabase signup error:', error);
+      throw new Error(error.message);
     }
+
+    if (!data.user) {
+      throw new Error('Failed to create user account');
+    }
+
+    console.log('User created successfully:', data.user.id);
   }
 
   async signIn(email: string, password: string): Promise<void> {
-    try {
-      if (!email.trim()) {
-        throw new Error('Email is required');
-      }
+    console.log('Starting signin process...', { email });
 
-      if (!password.trim()) {
-        throw new Error('Password is required');
-      }
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-      console.log('Starting signin process...', { email });
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        console.error('Supabase signin error:', error);
-        throw new Error(error.message);
-      }
-
-      if (!data.user) {
-        throw new Error('Login failed');
-      }
-
-      console.log('User signed in successfully:', data.user.id);
-    } catch (error: any) {
-      console.error('Login error:', error);
-      throw new Error(error.message || 'Login failed');
+    if (error) {
+      console.error('Supabase signin error:', error);
+      throw new Error(error.message);
     }
+
+    if (!data.user) {
+      throw new Error('Login failed');
+    }
+
+    console.log('User signed in successfully:', data.user.id);
   }
 
   async signOut(): Promise<void> {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        throw new Error(error.message);
-      }
-      console.log('User signed out successfully');
-    } catch (error: any) {
-      console.error('Logout error:', error);
-      throw new Error(error.message || 'Logout failed');
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      throw new Error(error.message);
     }
+    console.log('User signed out successfully');
   }
 
   async getCurrentUser(): Promise<UserProfile | null> {
