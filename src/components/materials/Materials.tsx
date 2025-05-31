@@ -7,8 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { persistentStorage } from '../../utils/persistentStorage';
-import { googleDriveStorage } from '../../utils/googleDriveStorage';
+import { materialService } from '../../services/materialService';
+import type { Database } from '@/integrations/supabase/types';
 import { 
   FolderOpen, 
   Upload, 
@@ -25,22 +25,7 @@ import {
   CloudUpload
 } from 'lucide-react';
 
-interface Material {
-  id: string;
-  title: string;
-  description: string;
-  fileName: string;
-  fileType: string;
-  fileSize: string;
-  uploadedAt: Date;
-  uploadedBy: string;
-  category: string;
-  downloads: number;
-  downloadUrl: string;
-  driveId?: string;
-  webViewLink?: string;
-  webContentLink?: string;
-}
+type Material = Database['public']['Tables']['materials']['Row'];
 
 const Materials = () => {
   const { user } = useAuth();
@@ -50,6 +35,7 @@ const Materials = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [materials, setMaterials] = useState<Material[]>([]);
   
   const [formData, setFormData] = useState({
@@ -58,16 +44,25 @@ const Materials = () => {
     category: 'lecture-notes'
   });
 
-  // Load materials from persistent storage on component mount
   useEffect(() => {
-    const data = persistentStorage.getData();
-    setMaterials(data.materials);
+    loadMaterials();
   }, []);
 
-  // Save materials to persistent storage whenever materials change
-  useEffect(() => {
-    persistentStorage.updateMaterials(materials);
-  }, [materials]);
+  const loadMaterials = async () => {
+    try {
+      setLoading(true);
+      const data = await materialService.getMaterials();
+      setMaterials(data);
+    } catch (error) {
+      toast({
+        title: "Error loading materials",
+        description: "Failed to load materials. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const categories = [
     { value: 'all', label: 'All Materials' },
@@ -80,15 +75,23 @@ const Materials = () => {
 
   const getFileIcon = (fileType: string) => {
     switch (fileType.toLowerCase()) {
+      case 'application/pdf':
       case 'pdf':
         return <FileText className="h-8 w-8 text-red-500" />;
+      case 'video/mp4':
+      case 'video/avi':
       case 'video':
       case 'mp4':
       case 'avi':
         return <Video className="h-8 w-8 text-purple-500" />;
+      case 'image/jpeg':
+      case 'image/png':
+      case 'image/gif':
       case 'image':
       case 'jpg':
+      case 'jpeg':
       case 'png':
+      case 'gif':
         return <Image className="h-8 w-8 text-blue-500" />;
       default:
         return <File className="h-8 w-8 text-gray-500" />;
@@ -110,31 +113,13 @@ const Materials = () => {
     setUploading(true);
 
     try {
-      // Try to upload to Google Drive, fallback to local simulation
-      let driveData = null;
-      try {
-        driveData = await googleDriveStorage.uploadFile(selectedFile, selectedFile.name);
-      } catch (error) {
-        console.log('Google Drive upload failed, using local simulation');
-        driveData = googleDriveStorage.simulateFileUpload(selectedFile);
-      }
+      await materialService.uploadMaterial({
+        title: formData.title,
+        description: formData.description,
+        category: formData.category,
+        file: selectedFile
+      });
 
-      const newMaterial: Material = {
-        id: Date.now().toString(),
-        ...formData,
-        fileName: selectedFile.name,
-        fileType: selectedFile.name.split('.').pop() || 'unknown',
-        fileSize: `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB`,
-        uploadedAt: new Date(),
-        uploadedBy: user?.name || 'Unknown',
-        downloads: 0,
-        downloadUrl: driveData?.webContentLink || URL.createObjectURL(selectedFile),
-        driveId: driveData?.id,
-        webViewLink: driveData?.webViewLink,
-        webContentLink: driveData?.webContentLink
-      };
-
-      setMaterials(prev => [newMaterial, ...prev]);
       setFormData({ title: '', description: '', category: 'lecture-notes' });
       setSelectedFile(null);
       setShowUploadForm(false);
@@ -143,6 +128,8 @@ const Materials = () => {
         title: "Material uploaded successfully!",
         description: "The material has been uploaded and is now available to students.",
       });
+
+      loadMaterials();
     } catch (error) {
       toast({
         title: "Upload failed",
@@ -154,46 +141,53 @@ const Materials = () => {
     }
   };
 
-  const handleDownload = (material: Material) => {
-    setMaterials(prev => prev.map(m => 
-      m.id === material.id ? { ...m, downloads: m.downloads + 1 } : m
-    ));
-    
-    if (material.webContentLink || material.downloadUrl) {
-      window.open(material.webContentLink || material.downloadUrl, '_blank');
+  const handleDownload = async (material: Material) => {
+    try {
+      await materialService.incrementDownload(material.id);
+      
+      const link = document.createElement('a');
+      link.href = material.file_url;
+      link.download = material.file_name;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Download started",
+        description: `Downloading ${material.file_name}`,
+      });
+
+      // Update local state to reflect download count increase
+      setMaterials(prev => prev.map(m => 
+        m.id === material.id ? { ...m, downloads: (m.downloads || 0) + 1 } : m
+      ));
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "There was an error downloading the file.",
+        variant: "destructive",
+      });
     }
-    
-    toast({
-      title: "Download started",
-      description: `Downloading ${material.fileName}`,
-    });
   };
 
   const handlePreview = (material: Material) => {
-    if (material.webViewLink) {
-      window.open(material.webViewLink, '_blank');
-    } else if (material.downloadUrl) {
-      window.open(material.downloadUrl, '_blank');
-    }
+    window.open(material.file_url, '_blank');
     
     toast({
       title: "Opening preview",
-      description: `Previewing ${material.fileName}`,
+      description: `Previewing ${material.file_name}`,
     });
   };
 
   const handleDelete = async (material: Material) => {
     try {
-      // Try to delete from Google Drive if it exists
-      if (material.driveId) {
-        await googleDriveStorage.deleteFile(material.driveId);
-      }
-      
-      setMaterials(prev => prev.filter(m => m.id !== material.id));
+      await materialService.deleteMaterial(material.id);
       toast({
         title: "Material deleted",
         description: "The material has been permanently removed.",
       });
+      loadMaterials();
     } catch (error) {
       toast({
         title: "Delete failed",
@@ -205,10 +199,20 @@ const Materials = () => {
 
   const filteredMaterials = materials.filter(material => {
     const matchesSearch = material.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         material.description.toLowerCase().includes(searchTerm.toLowerCase());
+                         (material.description && material.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = selectedCategory === 'all' || material.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -216,7 +220,7 @@ const Materials = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Course Materials</h1>
           <p className="text-gray-600">
-            {user?.role === 'admin' ? 'Upload and manage course materials with Google Drive integration' : 'Access and download course materials'}
+            {user?.role === 'admin' ? 'Upload and manage course materials with Supabase Storage' : 'Access and download course materials'}
           </p>
         </div>
         {user?.role === 'admin' && (
@@ -238,7 +242,7 @@ const Materials = () => {
               <CloudUpload className="h-5 w-5 text-purple-600" />
               <span>Upload New Material</span>
             </CardTitle>
-            <CardDescription>Upload files to Google Drive and share with students</CardDescription>
+            <CardDescription>Upload files to Supabase Storage and share with students</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleUpload} className="space-y-4">
@@ -333,7 +337,7 @@ const Materials = () => {
             <CardHeader>
               <div className="flex items-start space-x-4">
                 <div className="flex-shrink-0">
-                  {getFileIcon(material.fileType)}
+                  {getFileIcon(material.file_type)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <CardTitle className="text-lg truncate">{material.title}</CardTitle>
@@ -343,14 +347,12 @@ const Materials = () => {
                       {categories.find(c => c.value === material.category)?.label}
                     </Badge>
                     <span className="text-xs text-gray-500">
-                      {material.downloads} downloads
+                      {material.downloads || 0} downloads
                     </span>
-                    {material.driveId && (
-                      <Badge variant="outline" className="text-xs">
-                        <CloudUpload className="h-3 w-3 mr-1" />
-                        Drive
-                      </Badge>
-                    )}
+                    <Badge variant="outline" className="text-xs">
+                      <CloudUpload className="h-3 w-3 mr-1" />
+                      Supabase
+                    </Badge>
                   </div>
                 </div>
                 {user?.role === 'admin' && (
@@ -368,16 +370,16 @@ const Materials = () => {
             <CardContent>
               <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
                 <div className="flex items-center space-x-4">
-                  <span className="font-medium">{material.fileName}</span>
-                  <span>{material.fileSize}</span>
+                  <span className="font-medium">{material.file_name}</span>
+                  <span>{material.file_size}</span>
                 </div>
                 <span>
-                  {material.uploadedAt.toLocaleDateString()}
+                  {new Date(material.uploaded_at).toLocaleDateString()}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">
-                  Uploaded by {material.uploadedBy}
+                  Uploaded by User ID: {material.uploaded_by.slice(0, 8)}...
                 </span>
                 <div className="flex space-x-2">
                   <Button size="sm" variant="outline" onClick={() => handlePreview(material)}>
@@ -388,11 +390,9 @@ const Materials = () => {
                     <Download className="h-4 w-4 mr-2" />
                     Download
                   </Button>
-                  {material.webViewLink && (
-                    <Button size="sm" variant="outline" onClick={() => window.open(material.webViewLink, '_blank')}>
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button size="sm" variant="outline" onClick={() => window.open(material.file_url, '_blank')}>
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </CardContent>

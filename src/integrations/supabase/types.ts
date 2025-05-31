@@ -9,6 +9,105 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      assignments: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string
+          due_date: string
+          id: string
+          points: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description: string
+          due_date: string
+          id?: string
+          points?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string
+          due_date?: string
+          id?: string
+          points?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          message_type: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          message_type?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          message_type?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      materials: {
+        Row: {
+          category: string | null
+          description: string | null
+          downloads: number | null
+          file_name: string
+          file_size: string | null
+          file_type: string
+          file_url: string
+          id: string
+          title: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          category?: string | null
+          description?: string | null
+          downloads?: number | null
+          file_name: string
+          file_size?: string | null
+          file_type: string
+          file_url: string
+          id?: string
+          title: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          category?: string | null
+          description?: string | null
+          downloads?: number | null
+          file_name?: string
+          file_size?: string | null
+          file_type?: string
+          file_url?: string
+          id?: string
+          title?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar: string | null
@@ -35,6 +134,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      submissions: {
+        Row: {
+          assignment_id: string
+          content: string | null
+          feedback: string | null
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
+          grade: number | null
+          id: string
+          student_id: string
+          submitted_at: string
+        }
+        Insert: {
+          assignment_id: string
+          content?: string | null
+          feedback?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          grade?: number | null
+          id?: string
+          student_id: string
+          submitted_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          content?: string | null
+          feedback?: string | null
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
+          grade?: number | null
+          id?: string
+          student_id?: string
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

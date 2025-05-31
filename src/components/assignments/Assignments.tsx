@@ -4,10 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { persistentStorage } from '../../utils/persistentStorage';
+import { assignmentService, AssignmentWithSubmissions } from '../../services/assignmentService';
 import { 
   FileText, 
   Plus, 
@@ -20,153 +19,156 @@ import {
   Trash2,
   Upload,
   Download,
-  Eye
+  Eye,
+  Paperclip
 } from 'lucide-react';
-
-interface Assignment {
-  id: string;
-  title: string;
-  description: string;
-  dueDate: string;
-  points: number;
-  createdBy: string;
-  createdAt: Date;
-  submissions?: Submission[];
-}
-
-interface Submission {
-  id: string;
-  assignmentId: string;
-  studentId: string;
-  studentName: string;
-  content: string;
-  fileUrl?: string;
-  fileName?: string;
-  submittedAt: Date;
-  grade?: number;
-  feedback?: string;
-}
 
 const Assignments = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentWithSubmissions[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<AssignmentWithSubmissions | null>(null);
   const [submissionContent, setSubmissionContent] = useState('');
+  const [submissionFile, setSubmissionFile] = useState<File | null>(null);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    dueDate: '',
+    due_date: '',
     points: 100
   });
 
-  // Load assignments from persistent storage
   useEffect(() => {
-    const data = persistentStorage.getData();
-    setAssignments(data.assignments || []);
+    loadAssignments();
   }, []);
 
-  // Save assignments to persistent storage
-  useEffect(() => {
-    persistentStorage.updateAssignments(assignments);
-  }, [assignments]);
-
-  const handleCreateAssignment = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    const newAssignment: Assignment = {
-      id: editingAssignment ? editingAssignment.id : Date.now().toString(),
-      ...formData,
-      createdBy: user?.id || '',
-      createdAt: new Date(),
-      submissions: editingAssignment ? editingAssignment.submissions : []
-    };
-
-    if (editingAssignment) {
-      setAssignments(prev => prev.map(a => a.id === editingAssignment.id ? newAssignment : a));
+  const loadAssignments = async () => {
+    try {
+      setLoading(true);
+      const data = await assignmentService.getAssignments();
+      setAssignments(data);
+    } catch (error) {
       toast({
-        title: "Assignment updated!",
-        description: "The assignment has been successfully updated.",
+        title: "Error loading assignments",
+        description: "Failed to load assignments. Please try again.",
+        variant: "destructive",
       });
-    } else {
-      setAssignments(prev => [...prev, newAssignment]);
-      toast({
-        title: "Assignment created!",
-        description: "The assignment has been successfully created.",
-      });
+    } finally {
+      setLoading(false);
     }
-
-    setFormData({ title: '', description: '', dueDate: '', points: 100 });
-    setShowForm(false);
-    setEditingAssignment(null);
   };
 
-  const handleSubmitAssignment = (assignmentId: string) => {
-    if (!submissionContent.trim()) {
+  const handleCreateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      if (editingAssignment) {
+        await assignmentService.updateAssignment(editingAssignment.id, formData);
+        toast({
+          title: "Assignment updated!",
+          description: "The assignment has been successfully updated.",
+        });
+      } else {
+        await assignmentService.createAssignment(formData);
+        toast({
+          title: "Assignment created!",
+          description: "The assignment has been successfully created.",
+        });
+      }
+
+      setFormData({ title: '', description: '', due_date: '', points: 100 });
+      setShowForm(false);
+      setEditingAssignment(null);
+      loadAssignments();
+    } catch (error) {
       toast({
         title: "Error",
-        description: "Please enter your submission content.",
+        description: "Failed to save assignment. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSubmitAssignment = async (assignmentId: string) => {
+    if (!submissionContent.trim() && !submissionFile) {
+      toast({
+        title: "Error",
+        description: "Please enter content or attach a file for your submission.",
         variant: "destructive",
       });
       return;
     }
 
-    const submission: Submission = {
-      id: Date.now().toString(),
-      assignmentId,
-      studentId: user?.id || '',
-      studentName: user?.name || '',
-      content: submissionContent,
-      submittedAt: new Date()
-    };
+    try {
+      await assignmentService.submitAssignment({
+        assignmentId,
+        content: submissionContent,
+        file: submissionFile || undefined
+      });
 
-    setAssignments(prev => prev.map(assignment => {
-      if (assignment.id === assignmentId) {
-        const existingSubmissions = assignment.submissions || [];
-        // Remove existing submission from this student if any
-        const filteredSubmissions = existingSubmissions.filter(s => s.studentId !== user?.id);
-        return {
-          ...assignment,
-          submissions: [...filteredSubmissions, submission]
-        };
-      }
-      return assignment;
-    }));
+      setSubmissionContent('');
+      setSubmissionFile(null);
+      setSelectedAssignmentId(null);
+      
+      toast({
+        title: "Assignment submitted!",
+        description: "Your assignment has been successfully submitted.",
+      });
 
-    setSubmissionContent('');
-    setSelectedAssignmentId(null);
-    
-    toast({
-      title: "Assignment submitted!",
-      description: "Your assignment has been successfully submitted.",
-    });
+      loadAssignments();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit assignment. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleDeleteAssignment = (id: string) => {
-    setAssignments(prev => prev.filter(a => a.id !== id));
-    toast({
-      title: "Assignment deleted",
-      description: "The assignment has been successfully deleted.",
-    });
+  const handleDeleteAssignment = async (id: string) => {
+    try {
+      await assignmentService.deleteAssignment(id);
+      toast({
+        title: "Assignment deleted",
+        description: "The assignment has been successfully deleted.",
+      });
+      loadAssignments();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete assignment. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleEditAssignment = (assignment: Assignment) => {
+  const handleEditAssignment = (assignment: AssignmentWithSubmissions) => {
     setFormData({
       title: assignment.title,
       description: assignment.description,
-      dueDate: assignment.dueDate,
+      due_date: assignment.due_date,
       points: assignment.points
     });
     setEditingAssignment(assignment);
     setShowForm(true);
   };
 
-  const getSubmissionStatus = (assignment: Assignment) => {
+  const handleDownloadFile = (fileUrl: string, fileName: string) => {
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const getSubmissionStatus = (assignment: AssignmentWithSubmissions) => {
     if (user?.role === 'admin') return null;
     
-    const userSubmission = assignment.submissions?.find(s => s.studentId === user?.id);
+    const userSubmission = assignment.submissions?.find(s => s.student_id === user?.id);
     return userSubmission ? 'submitted' : 'pending';
   };
 
@@ -181,6 +183,16 @@ const Assignments = () => {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (user?.role !== 'admin' && user?.role !== 'student') {
     return (
@@ -244,8 +256,8 @@ const Assignments = () => {
                     <label className="text-sm font-medium text-gray-700 mb-2 block">Due Date</label>
                     <Input
                       type="date"
-                      value={formData.dueDate}
-                      onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                      value={formData.due_date}
+                      onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
                       required
                     />
                   </div>
@@ -283,7 +295,7 @@ const Assignments = () => {
                   onClick={() => {
                     setShowForm(false);
                     setEditingAssignment(null);
-                    setFormData({ title: '', description: '', dueDate: '', points: 100 });
+                    setFormData({ title: '', description: '', due_date: '', points: 100 });
                   }}
                 >
                   Cancel
@@ -297,9 +309,9 @@ const Assignments = () => {
       {/* Assignments List */}
       <div className="grid grid-cols-1 gap-6">
         {assignments.map((assignment) => {
-          const daysUntilDue = getDaysUntilDue(assignment.dueDate);
+          const daysUntilDue = getDaysUntilDue(assignment.due_date);
           const status = getSubmissionStatus(assignment);
-          const userSubmission = assignment.submissions?.find(s => s.studentId === user?.id);
+          const userSubmission = assignment.submissions?.find(s => s.student_id === user?.id);
 
           return (
             <Card key={assignment.id} className="hover:shadow-lg transition-shadow">
@@ -344,7 +356,7 @@ const Assignments = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
                     <Calendar className="h-4 w-4" />
-                    <span>Due: {formatDate(assignment.dueDate)}</span>
+                    <span>Due: {formatDate(assignment.due_date)}</span>
                   </div>
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
                     <Clock className="h-4 w-4" />
@@ -373,13 +385,31 @@ const Assignments = () => {
                           <span className="font-medium text-green-800">Assignment Submitted</span>
                         </div>
                         <p className="text-sm text-gray-700 mb-2">
-                          Submitted on: {new Date(userSubmission.submittedAt).toLocaleString()}
+                          Submitted on: {new Date(userSubmission.submitted_at).toLocaleString()}
                         </p>
-                        <div className="bg-white rounded p-3 text-sm">
-                          <strong>Your submission:</strong>
-                          <p className="mt-1">{userSubmission.content}</p>
-                        </div>
-                        {userSubmission.grade !== undefined && (
+                        {userSubmission.content && (
+                          <div className="bg-white rounded p-3 text-sm mb-2">
+                            <strong>Your submission:</strong>
+                            <p className="mt-1">{userSubmission.content}</p>
+                          </div>
+                        )}
+                        {userSubmission.file_url && (
+                          <div className="bg-white rounded p-3 text-sm mb-2">
+                            <div className="flex items-center space-x-2">
+                              <Paperclip className="h-4 w-4" />
+                              <span>Attached file: {userSubmission.file_name}</span>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleDownloadFile(userSubmission.file_url!, userSubmission.file_name!)}
+                              >
+                                <Download className="h-4 w-4 mr-1" />
+                                Download
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {userSubmission.grade !== null && (
                           <div className="mt-3 p-3 bg-blue-50 rounded">
                             <strong>Grade: {userSubmission.grade}/{assignment.points}</strong>
                             {userSubmission.feedback && (
@@ -404,10 +434,23 @@ const Assignments = () => {
                               onChange={(e) => setSubmissionContent(e.target.value)}
                               rows={4}
                             />
+                            <div>
+                              <label className="text-sm font-medium text-gray-700 mb-2 block">Attach File (Optional)</label>
+                              <Input
+                                type="file"
+                                onChange={(e) => setSubmissionFile(e.target.files?.[0] || null)}
+                                accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                              />
+                              {submissionFile && (
+                                <p className="text-sm text-gray-500 mt-1">
+                                  Selected: {submissionFile.name} ({(submissionFile.size / 1024 / 1024).toFixed(1)} MB)
+                                </p>
+                              )}
+                            </div>
                             <div className="flex space-x-2">
                               <Button 
                                 onClick={() => handleSubmitAssignment(assignment.id)}
-                                disabled={!submissionContent.trim()}
+                                disabled={!submissionContent.trim() && !submissionFile}
                               >
                                 Submit Assignment
                               </Button>
@@ -416,6 +459,7 @@ const Assignments = () => {
                                 onClick={() => {
                                   setSelectedAssignmentId(null);
                                   setSubmissionContent('');
+                                  setSubmissionFile(null);
                                 }}
                               >
                                 Cancel
@@ -449,12 +493,12 @@ const Assignments = () => {
                         <div key={submission.id} className="bg-gray-50 rounded-lg p-4">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <span className="font-medium">{submission.studentName}</span>
+                              <span className="font-medium">Student ID: {submission.student_id}</span>
                               <p className="text-sm text-gray-600">
-                                Submitted: {new Date(submission.submittedAt).toLocaleString()}
+                                Submitted: {new Date(submission.submitted_at).toLocaleString()}
                               </p>
                             </div>
-                            {submission.grade !== undefined && (
+                            {submission.grade !== null && (
                               <div className="text-right">
                                 <span className="font-medium text-green-600">
                                   {submission.grade}/{assignment.points}
@@ -462,9 +506,39 @@ const Assignments = () => {
                               </div>
                             )}
                           </div>
-                          <div className="bg-white rounded p-3 text-sm">
-                            <p>{submission.content}</p>
-                          </div>
+                          {submission.content && (
+                            <div className="bg-white rounded p-3 text-sm mb-2">
+                              <p>{submission.content}</p>
+                            </div>
+                          )}
+                          {submission.file_url && (
+                            <div className="bg-white rounded p-3 text-sm mb-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <Paperclip className="h-4 w-4" />
+                                  <span>{submission.file_name}</span>
+                                </div>
+                                <div className="flex space-x-2">
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => window.open(submission.file_url!, '_blank')}
+                                  >
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    Preview
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => handleDownloadFile(submission.file_url!, submission.file_name!)}
+                                  >
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           {submission.feedback && (
                             <div className="mt-2 p-2 bg-blue-50 rounded text-sm">
                               <strong>Feedback:</strong> {submission.feedback}
