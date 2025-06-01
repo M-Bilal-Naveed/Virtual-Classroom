@@ -68,34 +68,60 @@ class MaterialService {
   }
 
   async deleteMaterial(id: string): Promise<void> {
-    // Get material to find file path
-    const { data: material } = await supabase
+    // Get material to find file path for storage deletion
+    const { data: material, error: fetchError } = await supabase
       .from('materials')
       .select('file_url')
       .eq('id', id)
       .single();
 
+    if (fetchError) {
+      console.error('Error fetching material for deletion:', fetchError);
+      throw new Error(fetchError.message);
+    }
+
+    // Extract file path from URL and delete from storage
     if (material?.file_url) {
-      // Extract file path from URL
-      const url = new URL(material.file_url);
-      const filePath = url.pathname.split('/storage/v1/object/public/classroom-files/')[1];
-      
-      if (filePath) {
-        await supabase.storage
-          .from('classroom-files')
-          .remove([filePath]);
+      try {
+        // Parse the URL to extract the file path
+        const url = new URL(material.file_url);
+        const pathParts = url.pathname.split('/');
+        const bucketIndex = pathParts.findIndex(part => part === 'classroom-files');
+        
+        if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
+          // Reconstruct the file path from the URL
+          const filePath = pathParts.slice(bucketIndex + 1).join('/');
+          console.log('Deleting file from storage:', filePath);
+          
+          const { error: storageError } = await supabase.storage
+            .from('classroom-files')
+            .remove([filePath]);
+          
+          if (storageError) {
+            console.error('Error deleting file from storage:', storageError);
+            // Continue with database deletion even if storage deletion fails
+          } else {
+            console.log('File deleted from storage successfully');
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing file URL for storage deletion:', error);
+        // Continue with database deletion even if storage deletion fails
       }
     }
 
+    // Delete material record from database
     const { error } = await supabase
       .from('materials')
       .delete()
       .eq('id', id);
 
     if (error) {
-      console.error('Error deleting material:', error);
+      console.error('Error deleting material from database:', error);
       throw new Error(error.message);
     }
+
+    console.log('Material deleted successfully from database');
   }
 
   async incrementDownload(id: string): Promise<void> {

@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '../../contexts/AuthContext';
-import { persistentStorage } from '../../utils/persistentStorage';
+import { materialService } from '../../services/materialService';
+import { assignmentService, AssignmentWithSubmissions } from '../../services/assignmentService';
 import { attendanceService } from '../../services/attendanceService';
 import { videoConferenceService } from '../../services/videoConferenceService';
+import { persistentStorage } from '../../utils/persistentStorage';
 import { 
   Calendar, 
   Video, 
@@ -27,90 +29,125 @@ const Dashboard = () => {
   const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
   const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
   const [recentMaterials, setRecentMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState({
     totalClasses: 0,
     totalAssignments: 0,
     attendanceRate: 95
   });
 
-  // Load real data from persistent storage
+  // Load real data from Supabase
   useEffect(() => {
-    const loadDashboardData = () => {
-      const data = persistentStorage.getData();
-      console.log('Dashboard data loaded:', data);
+    const loadDashboardData = async () => {
+      if (!user) return;
       
-      // Get upcoming classes (within next 7 days)
-      const now = new Date();
-      const nextWeek = new Date();
-      nextWeek.setDate(now.getDate() + 7);
-      
-      const upcoming = data.scheduledClasses
-        .filter(cls => {
-          const classDate = new Date(`${cls.date} ${cls.time}`);
-          return classDate >= now;
-        })
-        .sort((a, b) => {
-          const dateA = new Date(`${a.date} ${a.time}`);
-          const dateB = new Date(`${b.date} ${b.time}`);
-          return dateA.getTime() - dateB.getTime();
-        })
-        .slice(0, 5);
-      
-      console.log('Upcoming classes:', upcoming);
-      setUpcomingClasses(upcoming);
+      try {
+        setLoading(true);
+        console.log('Loading dashboard data for user:', user.id);
 
-      // Get recent assignments (due within next 14 days or recently created)
-      const recent = data.assignments
-        .filter(assignment => {
-          const dueDate = new Date(assignment.dueDate);
-          const twoWeeksFromNow = new Date();
-          twoWeeksFromNow.setDate(now.getDate() + 14);
-          
-          return dueDate >= now && dueDate <= twoWeeksFromNow;
-        })
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-        .slice(0, 3)
-        .map(assignment => {
-          const dueDate = new Date(assignment.dueDate);
-          const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          const userSubmission = assignment.submissions?.find((s: any) => s.studentId === user?.id);
-          
-          return {
-            ...assignment,
-            due: daysUntilDue > 0 ? `${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}` : 'Today',
-            status: userSubmission ? 'submitted' : 'pending'
-          };
+        // Load materials from Supabase
+        const materials = await materialService.getMaterials();
+        console.log('Loaded materials:', materials);
+        
+        // Get recent materials (last 3)
+        const recentMats = materials
+          .sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
+          .slice(0, 3)
+          .map(material => ({
+            id: material.id,
+            title: material.title,
+            fileType: material.file_type,
+            fileSize: material.file_size,
+            downloadUrl: material.file_url,
+            webViewLink: material.file_url,
+            uploadedAt: material.uploaded_at
+          }));
+
+        setRecentMaterials(recentMats);
+
+        // Load assignments from Supabase
+        const assignments = await assignmentService.getAssignments();
+        console.log('Loaded assignments:', assignments);
+
+        // Get recent assignments (due within next 14 days)
+        const now = new Date();
+        const twoWeeksFromNow = new Date();
+        twoWeeksFromNow.setDate(now.getDate() + 14);
+        
+        const recentAssns = assignments
+          .filter(assignment => {
+            const dueDate = new Date(assignment.due_date);
+            return dueDate >= now && dueDate <= twoWeeksFromNow;
+          })
+          .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+          .slice(0, 3)
+          .map(assignment => {
+            const dueDate = new Date(assignment.due_date);
+            const daysUntilDue = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            const userSubmission = assignment.submissions?.find((s: any) => s.student_id === user?.id);
+            
+            return {
+              id: assignment.id,
+              title: assignment.title,
+              dueDate: assignment.due_date,
+              due: daysUntilDue > 0 ? `${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}` : 'Today',
+              status: userSubmission ? 'submitted' : 'pending'
+            };
+          });
+
+        setRecentAssignments(recentAssns);
+
+        // Load classes from persistent storage (as they're not in Supabase yet)
+        const data = persistentStorage.getData();
+        console.log('Persistent storage data:', data);
+        
+        // Get upcoming classes (within next 7 days)
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+        
+        const upcoming = data.scheduledClasses
+          .filter(cls => {
+            const classDate = new Date(`${cls.date} ${cls.time}`);
+            return classDate >= now;
+          })
+          .sort((a, b) => {
+            const dateA = new Date(`${a.date} ${a.time}`);
+            const dateB = new Date(`${b.date} ${b.time}`);
+            return dateA.getTime() - dateB.getTime();
+          })
+          .slice(0, 5);
+        
+        setUpcomingClasses(upcoming);
+
+        // Update statistics
+        setStatistics({
+          totalClasses: data.scheduledClasses.length,
+          totalAssignments: assignments.length,
+          attendanceRate: 95
         });
-      
-      setRecentAssignments(recent);
 
-      // Get recent materials (last 5)
-      const materials = data.materials
-        .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
-        .slice(0, 3);
-      
-      setRecentMaterials(materials);
-
-      // Update statistics
-      setStatistics({
-        totalClasses: data.scheduledClasses.length,
-        totalAssignments: data.assignments.length,
-        attendanceRate: 95
-      });
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadDashboardData();
 
-    // Set up interval to refresh data every 10 seconds
-    const interval = setInterval(loadDashboardData, 10000);
+    // Set up interval to refresh data every 30 seconds
+    const interval = setInterval(loadDashboardData, 30000);
     return () => clearInterval(interval);
-  }, [user?.id]);
+  }, [user]);
 
-  const handleDeleteMaterial = (materialId: string) => {
-    const data = persistentStorage.getData();
-    const updatedMaterials = data.materials.filter(m => m.id !== materialId);
-    persistentStorage.updateMaterials(updatedMaterials);
-    setRecentMaterials(prev => prev.filter(m => m.id !== materialId));
+  const handleDeleteMaterial = async (materialId: string) => {
+    try {
+      await materialService.deleteMaterial(materialId);
+      setRecentMaterials(prev => prev.filter(m => m.id !== materialId));
+      console.log('Material deleted successfully');
+    } catch (error) {
+      console.error('Error deleting material:', error);
+    }
   };
 
   const handleDownloadAttendance = async () => {
@@ -123,13 +160,11 @@ const Dashboard = () => {
   };
 
   const joinClass = (classItem: any) => {
-    // Use the video conference service to join
     videoConferenceService.joinMeeting(classItem.meetLink);
     console.log('Joining video meeting:', classItem.meetLink);
   };
 
   const startClass = (classItem: any) => {
-    // For admin, use the video conference service to start
     videoConferenceService.startMeeting(classItem.meetLink);
     console.log('Starting video meeting:', classItem.meetLink);
   };
@@ -156,8 +191,10 @@ const Dashboard = () => {
 
   const getFileIcon = (fileType: string) => {
     switch (fileType?.toLowerCase()) {
+      case 'application/pdf':
       case 'pdf':
         return <FileText className="h-5 w-5 text-red-500" />;
+      case 'video/mp4':
       case 'video':
       case 'mp4':
         return <Video className="h-5 w-5 text-purple-500" />;
@@ -165,6 +202,16 @@ const Dashboard = () => {
         return <FileText className="h-5 w-5 text-gray-500" />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -367,7 +414,7 @@ const Dashboard = () => {
               <FolderOpen className="h-5 w-5 text-purple-600" />
               <span>Recent Materials</span>
             </CardTitle>
-            <CardDescription>Recently uploaded course materials</CardDescription>
+            <CardDescription>Recently uploaded course materials from Supabase</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

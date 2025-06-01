@@ -19,6 +19,8 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
+  console.log('ProtectedRoute - user:', user?.email, 'loading:', loading);
+  
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-100">
@@ -30,11 +32,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     );
   }
   
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  if (!user) {
+    console.log('No user found, redirecting to login');
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
 };
 
 const AppContent = () => {
   const { user, loading } = useAuth();
+
+  console.log('AppContent - user:', user?.email, 'loading:', loading);
 
   if (loading) {
     return (
