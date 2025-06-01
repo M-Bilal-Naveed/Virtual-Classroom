@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useChat } from '../../hooks/useChat';
+import { useAuth } from '../../contexts/AuthContext';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { 
@@ -23,6 +24,7 @@ import {
  */
 const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
   
   const {
     messages,
@@ -130,7 +132,7 @@ const Chat = () => {
 
         <CardContent className="flex-1 p-0 overflow-hidden">
           <ScrollArea className="h-full p-4">
-            <div className="space-y-4">
+            <div className="space-y-2">
               {messages.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">
                   <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
@@ -145,9 +147,8 @@ const Chat = () => {
                     <ChatMessage
                       key={msg.id}
                       message={msg}
-                      isOwnMessage={false} // Will be handled in ChatMessage component
                       showAvatar={showAvatar}
-                      currentUserRole={canDelete ? 'admin' : 'student'}
+                      currentUserRole={user?.role}
                       onDelete={deleteMessage}
                     />
                   );

@@ -5,10 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { ChatMessageWithProfile } from '../../services/chatService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ChatMessageProps {
   message: ChatMessageWithProfile;
-  isOwnMessage: boolean;
   showAvatar: boolean;
   currentUserRole?: string;
   onDelete: (messageId: string) => void;
@@ -34,11 +34,15 @@ interface ChatMessageProps {
  */
 const ChatMessage: React.FC<ChatMessageProps> = ({
   message,
-  isOwnMessage,
   showAvatar,
   currentUserRole,
   onDelete
 }) => {
+  const { user } = useAuth();
+  
+  // Check if this message is from the current user
+  const isOwnMessage = user?.id === message.user_id;
+  
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { 
       hour: '2-digit', 
@@ -47,6 +51,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   };
 
   const getUserRole = () => {
+    // Check the actual user role from the database or message profile
     const userName = message.profiles?.name || '';
     if (userName.toLowerCase().includes('admin') || userName.toLowerCase().includes('teacher')) {
       return 'Teacher';
@@ -56,23 +61,27 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
   const getMessageBgClass = () => {
     if (isOwnMessage) {
-      return 'bg-purple-600 text-white';
+      return 'bg-blue-500 text-white ml-auto';
     }
     
     const userRole = getUserRole();
     if (userRole === 'Teacher') {
-      return 'bg-blue-100 text-blue-900 border border-blue-200';
+      return 'bg-green-100 text-green-900 border border-green-200 mr-auto';
     }
     
-    return 'bg-gray-100 text-gray-900';
+    return 'bg-gray-100 text-gray-900 mr-auto';
+  };
+
+  const getContainerAlignment = () => {
+    return isOwnMessage ? 'justify-end' : 'justify-start';
   };
 
   return (
-    <div className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
-      <div className={`flex max-w-xs lg:max-w-md ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} space-x-2`}>
-        {/* Avatar - only show for first message in sequence and not for own messages */}
+    <div className={`flex ${getContainerAlignment()} mb-4`}>
+      <div className={`flex max-w-xs lg:max-w-md ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end space-x-2`}>
+        {/* Avatar - only show for other users' messages and first message in sequence */}
         {showAvatar && !isOwnMessage && (
-          <Avatar className="h-8 w-8 mt-1 flex-shrink-0">
+          <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarImage 
               src={message.profiles?.avatar || ''} 
               alt={message.profiles?.name || 'User'} 
@@ -84,44 +93,48 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         )}
         
         {/* Message Content */}
-        <div className={`${showAvatar && !isOwnMessage ? '' : 'ml-10'} ${isOwnMessage ? 'mr-0' : ''} min-w-0 flex-1`}>
-          {/* Message Header - only show for first message in sequence */}
-          {showAvatar && (
-            <div className={`flex items-center space-x-2 mb-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
+        <div className={`min-w-0 flex-1 ${isOwnMessage ? 'mr-2' : 'ml-2'}`}>
+          {/* Message Header - only show for first message in sequence and other users */}
+          {showAvatar && !isOwnMessage && (
+            <div className="flex items-center space-x-2 mb-1">
               <span className="text-xs font-medium text-gray-600">
-                {isOwnMessage ? 'You' : (message.profiles?.name || 'Unknown User')}
+                {message.profiles?.name || 'Unknown User'}
               </span>
               
-              {/* Role Badge - only for other users */}
-              {!isOwnMessage && (
-                <Badge variant="secondary" className="text-xs">
-                  {getUserRole()}
-                </Badge>
-              )}
+              {/* Role Badge */}
+              <Badge variant="secondary" className="text-xs">
+                {getUserRole()}
+              </Badge>
               
-              {/* Timestamp */}
               <span className="text-xs text-gray-400">
                 {formatTime(message.created_at)}
               </span>
-              
-              {/* Delete Button - only for admins */}
-              {currentUserRole === 'admin' && (
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-4 w-4 p-0 text-red-500 hover:text-red-700"
-                  onClick={() => onDelete(message.id)}
-                  title="Delete message"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              )}
             </div>
           )}
           
           {/* Message Bubble */}
-          <div className={`rounded-lg px-3 py-2 break-words ${getMessageBgClass()}`}>
+          <div className={`rounded-lg px-3 py-2 break-words ${getMessageBgClass()} relative group`}>
             <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+            
+            {/* Timestamp for own messages */}
+            {isOwnMessage && (
+              <div className="text-xs text-blue-100 mt-1 text-right">
+                {formatTime(message.created_at)}
+              </div>
+            )}
+            
+            {/* Delete Button - only for admins */}
+            {currentUserRole === 'admin' && (
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="absolute -top-2 -right-2 h-6 w-6 p-0 text-red-500 hover:text-red-700 bg-white border border-red-200 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => onDelete(message.id)}
+                title="Delete message"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

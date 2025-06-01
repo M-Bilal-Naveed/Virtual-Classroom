@@ -26,9 +26,9 @@ export const useChat = () => {
     queryKey: ['chat-messages'],
     queryFn: () => chatService.getMessages(),
     enabled: !!user,
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     refetchOnMount: true,
-    staleTime: 0, // Always consider data stale to ensure fresh data
+    staleTime: 0,
   });
 
   /**
@@ -40,7 +40,7 @@ export const useChat = () => {
       return;
     }
 
-    console.log('Setting up real-time chat subscription...');
+    console.log('Setting up real-time chat subscription for user:', user.id);
     
     const channel = chatService.subscribeToMessages((payload) => {
       console.log('Real-time event received:', payload);
@@ -59,10 +59,10 @@ export const useChat = () => {
           return [...oldMessages, newMessage];
         });
 
-        // Show toast notification for messages from other users
+        // Show toast notification only for messages from other users
         if (newMessage.user_id !== user.id) {
           toast({
-            title: `New message from ${newMessage.profiles?.name || 'Unknown'}`,
+            title: `New message from ${newMessage.profiles?.name || 'Someone'}`,
             description: newMessage.message.length > 50 
               ? newMessage.message.substring(0, 50) + '...'
               : newMessage.message,
@@ -98,7 +98,7 @@ export const useChat = () => {
     if (!message.trim() || !user) return;
 
     try {
-      console.log('Sending message:', message);
+      console.log('Sending message from user:', user.id, message);
       await chatService.sendMessage(message.trim());
       console.log('Message sent successfully');
     } catch (error) {
