@@ -25,13 +25,12 @@ class ChatService {
 
   /**
    * Fetches all chat messages with user profile information
-   * Uses separate queries to avoid join issues with Supabase
    */
   async getMessages(): Promise<ChatMessageWithProfile[]> {
     console.log('Fetching chat messages...');
     
     try {
-      // First, get all chat messages
+      // Get all chat messages
       const { data: messages, error: messagesError } = await supabase
         .from('chat_messages')
         .select('*')
@@ -49,7 +48,6 @@ class ChatService {
 
       // Get unique user IDs
       const userIds = [...new Set(messages.map(msg => msg.user_id))];
-      console.log('Fetching profiles for users:', userIds);
 
       // Fetch profiles for all unique users
       const { data: profiles, error: profilesError } = await supabase
@@ -59,7 +57,6 @@ class ChatService {
 
       if (profilesError) {
         console.error('Error fetching profiles:', profilesError);
-        // Continue without profiles rather than throwing an error
       }
 
       // Combine messages with their profile data
@@ -78,8 +75,6 @@ class ChatService {
 
   /**
    * Sends a new chat message to the database
-   * @param message - The message content
-   * @param messageType - Type of message (default: 'text')
    */
   async sendMessage(message: string, messageType: string = 'text'): Promise<ChatMessage> {
     console.log('Sending message:', message);
@@ -112,7 +107,6 @@ class ChatService {
 
   /**
    * Deletes a chat message (admin only)
-   * @param messageId - ID of the message to delete
    */
   async deleteMessage(messageId: string): Promise<void> {
     console.log('Deleting message:', messageId);
@@ -139,7 +133,7 @@ class ChatService {
     const { error } = await supabase
       .from('chat_messages')
       .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all records
+      .neq('id', '00000000-0000-0000-0000-000000000000');
 
     if (error) {
       console.error('Error clearing messages:', error);
@@ -151,8 +145,6 @@ class ChatService {
 
   /**
    * Subscribes to real-time chat message updates
-   * @param callback - Function to call when new messages arrive
-   * @returns RealtimeChannel for cleanup
    */
   subscribeToMessages(callback: (payload: RealtimePayload) => void): RealtimeChannel {
     console.log('Setting up real-time subscription for chat messages...');
@@ -241,39 +233,18 @@ class ChatService {
 
   /**
    * Unsubscribes from real-time chat updates
-   * @param channel - The RealtimeChannel to unsubscribe from
    */
   unsubscribeFromMessages(channel: RealtimeChannel): void {
     console.log('Unsubscribing from real-time chat messages...');
     
-    // Remove the channel from Supabase
     if (channel) {
       supabase.removeChannel(channel);
     }
     
-    // Clear the channel reference and subscribers
     if (this.realtimeChannel === channel) {
       this.realtimeChannel = null;
       this.subscribers = [];
     }
-  }
-
-  /**
-   * Updates typing status for real-time indicators
-   */
-  async updateTypingStatus(isTyping: boolean): Promise<void> {
-    // This would use Supabase presence to track typing status
-    // For now, just log the status
-    console.log('Typing status updated:', isTyping);
-  }
-
-  /**
-   * Gets online users count using Supabase presence
-   */
-  async getOnlineUsers(): Promise<number> {
-    // This would use Supabase presence to track online users
-    console.log('Getting online users count');
-    return 0;
   }
 }
 

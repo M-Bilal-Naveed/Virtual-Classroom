@@ -20,16 +20,6 @@ import {
 
 /**
  * Main Chat Component
- * 
- * Features:
- * - Real-time message display
- * - Message search and filtering
- * - Admin controls (delete, clear chat)
- * - Connection status indicator
- * - Auto-scroll to new messages
- * - Responsive design
- * 
- * File: src/components/chat/Chat.tsx
  */
 const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -81,7 +71,6 @@ const Chat = () => {
                 <MessageCircle className="h-5 w-5 text-purple-600" />
                 <span>Class Discussion</span>
                 <Badge variant="outline">{messageCount} messages</Badge>
-                {/* Connection Status Badge */}
                 <Badge variant={isConnected ? "default" : "destructive"} className="flex items-center space-x-1">
                   {isConnected ? (
                     <>
@@ -102,7 +91,6 @@ const Chat = () => {
               </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
-              {/* Search Input */}
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
@@ -113,7 +101,6 @@ const Chat = () => {
                 />
               </div>
               
-              {/* Refresh Button */}
               <Button 
                 size="sm" 
                 variant="ghost" 
@@ -123,7 +110,6 @@ const Chat = () => {
                 <RefreshCw className="h-4 w-4" />
               </Button>
               
-              {/* Admin Controls */}
               {canClear && (
                 <Button 
                   size="sm" 
@@ -142,7 +128,6 @@ const Chat = () => {
           </div>
         </CardHeader>
 
-        {/* Messages Area */}
         <CardContent className="flex-1 p-0 overflow-hidden">
           <ScrollArea className="h-full p-4">
             <div className="space-y-4">
@@ -155,13 +140,12 @@ const Chat = () => {
                 messages.map((msg, index) => {
                   const previousMessage = index > 0 ? messages[index - 1] : null;
                   const showAvatar = !previousMessage || previousMessage.user_id !== msg.user_id;
-                  const isOwnMessage = msg.user_id === msg.user_id; // This will be properly set by useAuth
                   
                   return (
                     <ChatMessage
                       key={msg.id}
                       message={msg}
-                      isOwnMessage={isOwnMessage}
+                      isOwnMessage={false} // Will be handled in ChatMessage component
                       showAvatar={showAvatar}
                       currentUserRole={canDelete ? 'admin' : 'student'}
                       onDelete={deleteMessage}
@@ -174,7 +158,6 @@ const Chat = () => {
           </ScrollArea>
         </CardContent>
 
-        {/* Chat Input */}
         <ChatInput
           onSendMessage={sendMessage}
           disabled={!isConnected}

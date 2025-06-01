@@ -4,31 +4,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { chatService, ChatMessageWithProfile } from '../services/chatService';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /**
  * Custom hook for managing chat functionality
  * Handles real-time messaging, sending messages, and chat state management
- * 
- * Features:
- * - Real-time message updates via Supabase
- * - Message sending with error handling
- * - Automatic scrolling to new messages
- * - Message search and filtering
- * - Admin actions (delete messages, clear chat)
- * - Persistent real-time connection across navigation
- * 
- * @returns Object containing chat state and actions
  */
 export const useChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Fetch messages using React Query with aggressive caching
+  // Fetch messages using React Query
   const { 
     data: messages = [], 
     isLoading, 
@@ -37,17 +25,14 @@ export const useChat = () => {
   } = useQuery({
     queryKey: ['chat-messages'],
     queryFn: () => chatService.getMessages(),
-    refetchInterval: false, // Disabled because we use real-time updates
-    enabled: !!user, // Only fetch when user is authenticated
-    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
-    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
-    refetchOnWindowFocus: false, // Don't refetch on window focus
-    refetchOnMount: false, // Don't refetch on component mount if data exists
+    enabled: !!user,
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0, // Always consider data stale to ensure fresh data
   });
 
   /**
    * Sets up real-time subscription for new messages
-   * Automatically updates the React Query cache when new messages arrive
    */
   useEffect(() => {
     if (!user) {
@@ -55,7 +40,7 @@ export const useChat = () => {
       return;
     }
 
-    console.log('Setting up real-time chat subscription for user:', user.email);
+    console.log('Setting up real-time chat subscription...');
     
     const channel = chatService.subscribeToMessages((payload) => {
       console.log('Real-time event received:', payload);
@@ -68,11 +53,9 @@ export const useChat = () => {
           // Check if message already exists to avoid duplicates
           const messageExists = oldMessages.some(msg => msg.id === newMessage.id);
           if (messageExists) {
-            console.log('Message already exists, skipping duplicate');
             return oldMessages;
           }
           
-          console.log('Adding new message to cache:', newMessage);
           return [...oldMessages, newMessage];
         });
 
@@ -94,15 +77,8 @@ export const useChat = () => {
       }
     });
 
-    // Set connection status based on subscription
     if (channel) {
       setIsConnected(true);
-      
-      // Listen for connection status changes
-      channel.subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-        setIsConnected(status === 'SUBSCRIBED');
-      });
     }
 
     // Cleanup subscription on unmount
@@ -117,7 +93,6 @@ export const useChat = () => {
 
   /**
    * Sends a new message to the chat
-   * @param message - The message content to send
    */
   const sendMessage = useCallback(async (message: string) => {
     if (!message.trim() || !user) return;
@@ -125,9 +100,7 @@ export const useChat = () => {
     try {
       console.log('Sending message:', message);
       await chatService.sendMessage(message.trim());
-      
-      // Don't add to cache here - let real-time handle it
-      console.log('Message sent successfully, waiting for real-time update');
+      console.log('Message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -140,17 +113,12 @@ export const useChat = () => {
 
   /**
    * Deletes a message (admin only)
-   * @param messageId - ID of the message to delete
    */
   const deleteMessage = useCallback(async (messageId: string) => {
     if (user?.role !== 'admin') return;
 
     try {
       await chatService.deleteMessage(messageId);
-      
-      // Real-time will handle the cache update via DELETE event
-      console.log('Message deletion initiated, waiting for real-time update');
-      
       toast({
         title: "Message deleted",
         description: "The message has been removed from the chat.",
@@ -173,10 +141,7 @@ export const useChat = () => {
 
     try {
       await chatService.clearAllMessages();
-      
-      // Clear the query cache immediately for better UX
       queryClient.setQueryData(['chat-messages'], []);
-      
       toast({
         title: "Chat cleared",
         description: "All messages have been removed from the chat.",
@@ -200,18 +165,6 @@ export const useChat = () => {
   );
 
   /**
-   * Updates typing status for the current user
-   */
-  const updateTypingStatus = useCallback(async (typing: boolean) => {
-    setIsTyping(typing);
-    try {
-      await chatService.updateTypingStatus(typing);
-    } catch (error) {
-      console.error('Error updating typing status:', error);
-    }
-  }, []);
-
-  /**
    * Force refresh messages from server
    */
   const refreshMessages = useCallback(async () => {
@@ -229,7 +182,6 @@ export const useChat = () => {
     isLoading,
     error,
     searchTerm,
-    isTyping,
     isConnected,
     
     // Actions
@@ -237,7 +189,6 @@ export const useChat = () => {
     deleteMessage,
     clearChat,
     setSearchTerm,
-    updateTypingStatus,
     refreshMessages,
     
     // Computed values
