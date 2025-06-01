@@ -16,6 +16,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
  * - Automatic scrolling to new messages
  * - Message search and filtering
  * - Admin actions (delete messages, clear chat)
+ * - Persistent real-time connection across navigation
  * 
  * @returns Object containing chat state and actions
  */
@@ -25,9 +26,9 @@ export const useChat = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [realtimeChannel, setRealtimeChannel] = useState<RealtimeChannel | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
-  // Fetch messages using React Query
+  // Fetch messages using React Query with aggressive caching
   const { 
     data: messages = [], 
     isLoading, 
@@ -38,6 +39,10 @@ export const useChat = () => {
     queryFn: () => chatService.getMessages(),
     refetchInterval: false, // Disabled because we use real-time updates
     enabled: !!user, // Only fetch when user is authenticated
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnMount: false, // Don't refetch on component mount if data exists
   });
 
   /**
@@ -45,41 +50,68 @@ export const useChat = () => {
    * Automatically updates the React Query cache when new messages arrive
    */
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setIsConnected(false);
+      return;
+    }
 
     console.log('Setting up real-time chat subscription for user:', user.email);
     
-    const channel = chatService.subscribeToMessages((newMessage: ChatMessageWithProfile) => {
-      console.log('New real-time message received:', newMessage);
+    const channel = chatService.subscribeToMessages((payload) => {
+      console.log('Real-time event received:', payload);
       
-      // Update the query cache with the new message
-      queryClient.setQueryData(['chat-messages'], (oldMessages: ChatMessageWithProfile[] = []) => {
-        // Check if message already exists to avoid duplicates
-        const messageExists = oldMessages.some(msg => msg.id === newMessage.id);
-        if (messageExists) {
-          return oldMessages;
-        }
-        return [...oldMessages, newMessage];
-      });
+      if (payload.eventType === 'INSERT') {
+        const newMessage = payload.new as ChatMessageWithProfile;
+        
+        // Update the query cache with the new message
+        queryClient.setQueryData(['chat-messages'], (oldMessages: ChatMessageWithProfile[] = []) => {
+          // Check if message already exists to avoid duplicates
+          const messageExists = oldMessages.some(msg => msg.id === newMessage.id);
+          if (messageExists) {
+            console.log('Message already exists, skipping duplicate');
+            return oldMessages;
+          }
+          
+          console.log('Adding new message to cache:', newMessage);
+          return [...oldMessages, newMessage];
+        });
 
-      // Show toast notification for messages from other users
-      if (newMessage.user_id !== user.id) {
-        toast({
-          title: `New message from ${newMessage.profiles?.name || 'Unknown'}`,
-          description: newMessage.message.length > 50 
-            ? newMessage.message.substring(0, 50) + '...'
-            : newMessage.message,
+        // Show toast notification for messages from other users
+        if (newMessage.user_id !== user.id) {
+          toast({
+            title: `New message from ${newMessage.profiles?.name || 'Unknown'}`,
+            description: newMessage.message.length > 50 
+              ? newMessage.message.substring(0, 50) + '...'
+              : newMessage.message,
+          });
+        }
+      } else if (payload.eventType === 'DELETE') {
+        // Handle message deletion
+        const deletedMessage = payload.old;
+        queryClient.setQueryData(['chat-messages'], (oldMessages: ChatMessageWithProfile[] = []) => {
+          return oldMessages.filter(msg => msg.id !== deletedMessage.id);
         });
       }
     });
 
-    setRealtimeChannel(channel);
+    // Set connection status based on subscription
+    if (channel) {
+      setIsConnected(true);
+      
+      // Listen for connection status changes
+      channel.subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+        setIsConnected(status === 'SUBSCRIBED');
+      });
+    }
 
     // Cleanup subscription on unmount
     return () => {
       console.log('Cleaning up real-time chat subscription...');
-      chatService.unsubscribeFromMessages(channel);
-      setRealtimeChannel(null);
+      if (channel) {
+        chatService.unsubscribeFromMessages(channel);
+      }
+      setIsConnected(false);
     };
   }, [user, queryClient, toast]);
 
@@ -94,10 +126,8 @@ export const useChat = () => {
       console.log('Sending message:', message);
       await chatService.sendMessage(message.trim());
       
-      toast({
-        title: "Message sent!",
-        description: "Your message has been sent to the chat.",
-      });
+      // Don't add to cache here - let real-time handle it
+      console.log('Message sent successfully, waiting for real-time update');
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -118,11 +148,9 @@ export const useChat = () => {
     try {
       await chatService.deleteMessage(messageId);
       
-      // Update the query cache to remove the deleted message
-      queryClient.setQueryData(['chat-messages'], (oldMessages: ChatMessageWithProfile[] = []) => {
-        return oldMessages.filter(msg => msg.id !== messageId);
-      });
-
+      // Real-time will handle the cache update via DELETE event
+      console.log('Message deletion initiated, waiting for real-time update');
+      
       toast({
         title: "Message deleted",
         description: "The message has been removed from the chat.",
@@ -135,7 +163,7 @@ export const useChat = () => {
         variant: "destructive",
       });
     }
-  }, [user, queryClient, toast]);
+  }, [user, toast]);
 
   /**
    * Clears all messages from the chat (admin only)
@@ -146,7 +174,7 @@ export const useChat = () => {
     try {
       await chatService.clearAllMessages();
       
-      // Clear the query cache
+      // Clear the query cache immediately for better UX
       queryClient.setQueryData(['chat-messages'], []);
       
       toast({
@@ -183,6 +211,17 @@ export const useChat = () => {
     }
   }, []);
 
+  /**
+   * Force refresh messages from server
+   */
+  const refreshMessages = useCallback(async () => {
+    try {
+      await refetch();
+    } catch (error) {
+      console.error('Error refreshing messages:', error);
+    }
+  }, [refetch]);
+
   return {
     // State
     messages: filteredMessages,
@@ -191,7 +230,7 @@ export const useChat = () => {
     error,
     searchTerm,
     isTyping,
-    isConnected: !!realtimeChannel,
+    isConnected,
     
     // Actions
     sendMessage,
@@ -199,7 +238,7 @@ export const useChat = () => {
     clearChat,
     setSearchTerm,
     updateTypingStatus,
-    refetchMessages: refetch,
+    refreshMessages,
     
     // Computed values
     messageCount: messages.length,

@@ -13,8 +13,15 @@ export interface ChatMessageWithProfile extends ChatMessage {
   } | null;
 }
 
+interface RealtimePayload {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  new: ChatMessageWithProfile;
+  old: ChatMessage;
+}
+
 class ChatService {
   private realtimeChannel: RealtimeChannel | null = null;
+  private subscribers: ((payload: RealtimePayload) => void)[] = [];
 
   /**
    * Fetches all chat messages with user profile information
@@ -23,45 +30,50 @@ class ChatService {
   async getMessages(): Promise<ChatMessageWithProfile[]> {
     console.log('Fetching chat messages...');
     
-    // First, get all chat messages
-    const { data: messages, error: messagesError } = await supabase
-      .from('chat_messages')
-      .select('*')
-      .order('created_at', { ascending: true });
+    try {
+      // First, get all chat messages
+      const { data: messages, error: messagesError } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true });
 
-    if (messagesError) {
-      console.error('Error fetching messages:', messagesError);
-      throw new Error(messagesError.message);
-    }
+      if (messagesError) {
+        console.error('Error fetching messages:', messagesError);
+        throw new Error(messagesError.message);
+      }
 
-    if (!messages || messages.length === 0) {
-      console.log('No messages found');
+      if (!messages || messages.length === 0) {
+        console.log('No messages found');
+        return [];
+      }
+
+      // Get unique user IDs
+      const userIds = [...new Set(messages.map(msg => msg.user_id))];
+      console.log('Fetching profiles for users:', userIds);
+
+      // Fetch profiles for all unique users
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, avatar')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Continue without profiles rather than throwing an error
+      }
+
+      // Combine messages with their profile data
+      const messagesWithProfiles: ChatMessageWithProfile[] = messages.map(message => ({
+        ...message,
+        profiles: profiles?.find(profile => profile.id === message.user_id) || null
+      }));
+
+      console.log('Successfully fetched', messagesWithProfiles.length, 'messages');
+      return messagesWithProfiles;
+    } catch (error) {
+      console.error('Error in getMessages:', error);
       return [];
     }
-
-    // Get unique user IDs
-    const userIds = [...new Set(messages.map(msg => msg.user_id))];
-    console.log('Fetching profiles for users:', userIds);
-
-    // Fetch profiles for all unique users
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, name, avatar')
-      .in('id', userIds);
-
-    if (profilesError) {
-      console.error('Error fetching profiles:', profilesError);
-      // Continue without profiles rather than throwing an error
-    }
-
-    // Combine messages with their profile data
-    const messagesWithProfiles: ChatMessageWithProfile[] = messages.map(message => ({
-      ...message,
-      profiles: profiles?.find(profile => profile.id === message.user_id) || null
-    }));
-
-    console.log('Successfully fetched', messagesWithProfiles.length, 'messages');
-    return messagesWithProfiles;
   }
 
   /**
@@ -142,71 +154,87 @@ class ChatService {
    * @param callback - Function to call when new messages arrive
    * @returns RealtimeChannel for cleanup
    */
-  subscribeToMessages(callback: (message: ChatMessageWithProfile) => void): RealtimeChannel {
+  subscribeToMessages(callback: (payload: RealtimePayload) => void): RealtimeChannel {
     console.log('Setting up real-time subscription for chat messages...');
     
-    // Clean up existing subscription if any
-    if (this.realtimeChannel) {
-      this.unsubscribeFromMessages(this.realtimeChannel);
-    }
-
-    this.realtimeChannel = supabase
-      .channel('chat_messages_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages'
-        },
-        async (payload) => {
-          console.log('Real-time INSERT event received:', payload);
-          
-          try {
-            // Fetch the complete message data
-            const { data: message } = await supabase
-              .from('chat_messages')
-              .select('*')
-              .eq('id', payload.new.id)
-              .single();
+    // Add callback to subscribers list
+    this.subscribers.push(callback);
+    
+    // Only create one channel for all subscribers
+    if (!this.realtimeChannel) {
+      this.realtimeChannel = supabase
+        .channel('chat_messages_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages'
+          },
+          async (payload) => {
+            console.log('Real-time INSERT event received:', payload);
             
-            if (message) {
-              // Fetch the user profile separately
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('name, avatar')
-                .eq('id', message.user_id)
+            try {
+              // Fetch the complete message data with profile
+              const { data: message } = await supabase
+                .from('chat_messages')
+                .select('*')
+                .eq('id', payload.new.id)
                 .single();
               
-              const messageWithProfile: ChatMessageWithProfile = {
-                ...message,
-                profiles: profile || null
-              };
-              
-              console.log('Calling callback with new message:', messageWithProfile);
-              callback(messageWithProfile);
+              if (message) {
+                // Fetch the user profile separately
+                const { data: profile } = await supabase
+                  .from('profiles')
+                  .select('name, avatar')
+                  .eq('id', message.user_id)
+                  .single();
+                
+                const messageWithProfile: ChatMessageWithProfile = {
+                  ...message,
+                  profiles: profile || null
+                };
+                
+                // Notify all subscribers
+                const realtimePayload: RealtimePayload = {
+                  eventType: 'INSERT',
+                  new: messageWithProfile,
+                  old: payload.old as ChatMessage
+                };
+                
+                this.subscribers.forEach(sub => sub(realtimePayload));
+              }
+            } catch (error) {
+              console.error('Error processing real-time INSERT:', error);
             }
-          } catch (error) {
-            console.error('Error processing real-time message:', error);
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'chat_messages'
-        },
-        (payload) => {
-          console.log('Real-time DELETE event received:', payload);
-          // Handle message deletion if needed
-          // This could trigger a refresh of the messages list
-        }
-      )
-      .subscribe((status) => {
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'DELETE',
+            schema: 'public',
+            table: 'chat_messages'
+          },
+          (payload) => {
+            console.log('Real-time DELETE event received:', payload);
+            
+            // Notify all subscribers
+            const realtimePayload: RealtimePayload = {
+              eventType: 'DELETE',
+              new: payload.new as ChatMessageWithProfile,
+              old: payload.old as ChatMessage
+            };
+            
+            this.subscribers.forEach(sub => sub(realtimePayload));
+          }
+        );
+        
+      // Subscribe to the channel
+      this.realtimeChannel.subscribe((status) => {
         console.log('Real-time subscription status:', status);
       });
+    }
 
     return this.realtimeChannel;
   }
@@ -218,32 +246,32 @@ class ChatService {
   unsubscribeFromMessages(channel: RealtimeChannel): void {
     console.log('Unsubscribing from real-time chat messages...');
     
+    // Remove the channel from Supabase
     if (channel) {
       supabase.removeChannel(channel);
     }
     
+    // Clear the channel reference and subscribers
     if (this.realtimeChannel === channel) {
       this.realtimeChannel = null;
+      this.subscribers = [];
     }
   }
 
   /**
-   * Gets the current user's typing status and manages typing indicators
-   * This is a placeholder for future typing indicator functionality
+   * Updates typing status for real-time indicators
    */
   async updateTypingStatus(isTyping: boolean): Promise<void> {
     // This would use Supabase presence to track typing status
-    // Implementation would depend on specific requirements
+    // For now, just log the status
     console.log('Typing status updated:', isTyping);
   }
 
   /**
    * Gets online users count using Supabase presence
-   * This is a placeholder for future presence functionality
    */
   async getOnlineUsers(): Promise<number> {
     // This would use Supabase presence to track online users
-    // Implementation would depend on specific requirements
     console.log('Getting online users count');
     return 0;
   }
