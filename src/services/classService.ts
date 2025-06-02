@@ -19,13 +19,7 @@ class ClassService {
     try {
       const { data: classes, error } = await supabase
         .from('classes')
-        .select(`
-          *,
-          profiles!classes_created_by_fkey (
-            name,
-            role
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -33,8 +27,22 @@ class ClassService {
         throw new Error(error.message);
       }
 
-      console.log('Successfully fetched', classes?.length || 0, 'classes');
-      return classes || [];
+      // Fetch profiles separately and join manually
+      const creatorIds = [...new Set(classes?.map(cls => cls.created_by) || [])];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, role')
+        .in('id', creatorIds);
+
+      const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      const classesWithProfiles: ClassWithProfile[] = (classes || []).map(classItem => ({
+        ...classItem,
+        profiles: profilesMap.get(classItem.created_by) || null
+      }));
+
+      console.log('Successfully fetched', classesWithProfiles.length, 'classes');
+      return classesWithProfiles;
     } catch (error) {
       console.error('Error in getClasses:', error);
       return [];

@@ -30,14 +30,7 @@ class ChatService {
     try {
       const { data: messages, error: messagesError } = await supabase
         .from('chat_messages')
-        .select(`
-          *,
-          profiles!chat_messages_user_id_fkey (
-            name,
-            avatar,
-            role
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: true });
 
       if (messagesError) {
@@ -45,8 +38,22 @@ class ChatService {
         throw new Error(messagesError.message);
       }
 
-      console.log('Successfully fetched', messages?.length || 0, 'messages');
-      return messages || [];
+      // Fetch profiles separately and join manually
+      const userIds = [...new Set(messages?.map(msg => msg.user_id) || [])];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar, role')
+        .in('id', userIds);
+
+      const profilesMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      const messagesWithProfiles: ChatMessageWithProfile[] = (messages || []).map(message => ({
+        ...message,
+        profiles: profilesMap.get(message.user_id) || null
+      }));
+
+      console.log('Successfully fetched', messagesWithProfiles.length, 'messages');
+      return messagesWithProfiles;
     } catch (error) {
       console.error('Error in getMessages:', error);
       return [];
