@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -573,23 +572,29 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Link to="/chat">
-          <Card className="bg-gradient-to-br from-pink-500 to-pink-600 text-white hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-pink-100">Chat</p>
-                  <p className="text-xl font-bold">Discussion</p>
-                </div>
-                <MessageCircle className="h-12 w-12 text-pink-200" />
+        <Card className="bg-gradient-to-br from-pink-500 to-pink-600 text-white hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-pink-100">Chat</p>
+                <p className="text-xl font-bold">Discussion</p>
               </div>
-              <div className="mt-4 flex items-center space-x-2">
-                <MessageCircle className="h-4 w-4 text-pink-200" />
-                <span className="text-sm text-pink-100">Join conversation</span>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+              <MessageCircle className="h-12 w-12 text-pink-200" />
+            </div>
+            <div className="mt-4">
+              <Link to="/chat">
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="text-pink-100 hover:text-white hover:bg-pink-400/20"
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  Join Chat
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
