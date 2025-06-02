@@ -10,37 +10,16 @@ import { useAuth } from '../../contexts/AuthContext';
 interface ChatMessageProps {
   message: ChatMessageWithProfile;
   showAvatar: boolean;
-  currentUserRole?: string;
   onDelete: (messageId: string) => void;
 }
 
-/**
- * ChatMessage Component
- * 
- * Renders an individual chat message with:
- * - User avatar and name
- * - Message content with appropriate styling
- * - Timestamp
- * - Delete button for admins
- * - Role badges for teachers/admins
- * 
- * Features:
- * - Different styling for own messages vs others
- * - Avatar grouping (only show avatar for first message in sequence)
- * - Role-based styling and badges
- * - Admin delete functionality
- * 
- * File: src/components/chat/ChatMessage.tsx
- */
 const ChatMessage: React.FC<ChatMessageProps> = ({
   message,
   showAvatar,
-  currentUserRole,
   onDelete
 }) => {
   const { user } = useAuth();
   
-  // Check if this message is from the current user
   const isOwnMessage = user?.id === message.user_id;
   
   const formatTime = (dateString: string) => {
@@ -51,12 +30,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   };
 
   const getUserRole = () => {
-    // Check the actual user role from the database or message profile
-    const userName = message.profiles?.name || '';
-    if (userName.toLowerCase().includes('admin') || userName.toLowerCase().includes('teacher')) {
-      return 'Teacher';
-    }
-    return 'Student';
+    return message.profiles?.role || 'student';
   };
 
   const getMessageBgClass = () => {
@@ -65,7 +39,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     }
     
     const userRole = getUserRole();
-    if (userRole === 'Teacher') {
+    if (userRole === 'admin' || userRole === 'teacher') {
       return 'bg-green-100 text-green-900 border border-green-200 mr-auto';
     }
     
@@ -76,10 +50,13 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     return isOwnMessage ? 'justify-end' : 'justify-start';
   };
 
+  const canDeleteMessage = () => {
+    return isOwnMessage || user?.role === 'admin';
+  };
+
   return (
     <div className={`flex ${getContainerAlignment()} mb-4`}>
       <div className={`flex max-w-xs lg:max-w-md ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end space-x-2`}>
-        {/* Avatar - only show for other users' messages and first message in sequence */}
         {showAvatar && !isOwnMessage && (
           <Avatar className="h-8 w-8 flex-shrink-0">
             <AvatarImage 
@@ -92,19 +69,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           </Avatar>
         )}
         
-        {/* Message Content */}
         <div className={`min-w-0 flex-1 ${isOwnMessage ? 'mr-2' : 'ml-2'}`}>
-          {/* Message Header - only show for first message in sequence and other users */}
-          {showAvatar && !isOwnMessage && (
-            <div className="flex items-center space-x-2 mb-1">
+          {showAvatar && (
+            <div className={`flex items-center space-x-2 mb-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
               <span className="text-xs font-medium text-gray-600">
-                {message.profiles?.name || 'Unknown User'}
+                {isOwnMessage ? 'You' : (message.profiles?.name || 'Unknown User')}
               </span>
               
-              {/* Role Badge */}
-              <Badge variant="secondary" className="text-xs">
-                {getUserRole()}
-              </Badge>
+              {!isOwnMessage && (
+                <Badge variant="secondary" className="text-xs">
+                  {getUserRole() === 'admin' ? 'Teacher' : 'Student'}
+                </Badge>
+              )}
               
               <span className="text-xs text-gray-400">
                 {formatTime(message.created_at)}
@@ -112,19 +88,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           )}
           
-          {/* Message Bubble */}
           <div className={`rounded-lg px-3 py-2 break-words ${getMessageBgClass()} relative group`}>
             <p className="text-sm whitespace-pre-wrap">{message.message}</p>
             
-            {/* Timestamp for own messages */}
             {isOwnMessage && (
               <div className="text-xs text-blue-100 mt-1 text-right">
                 {formatTime(message.created_at)}
               </div>
             )}
             
-            {/* Delete Button - only for admins */}
-            {currentUserRole === 'admin' && (
+            {canDeleteMessage() && (
               <Button 
                 size="sm" 
                 variant="ghost" 

@@ -5,10 +5,6 @@ import { chatService, ChatMessageWithProfile } from '../services/chatService';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
-/**
- * Custom hook for managing chat functionality
- * Handles real-time messaging, sending messages, and chat state management
- */
 export const useChat = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -16,7 +12,6 @@ export const useChat = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isConnected, setIsConnected] = useState(false);
 
-  // Fetch messages using React Query
   const { 
     data: messages = [], 
     isLoading, 
@@ -31,9 +26,15 @@ export const useChat = () => {
     staleTime: 0,
   });
 
-  /**
-   * Sets up real-time subscription for new messages
-   */
+  // Auto-refresh after sending message
+  const autoRefresh = useCallback(async () => {
+    try {
+      await refetch();
+    } catch (error) {
+      console.error('Auto-refresh failed:', error);
+    }
+  }, [refetch]);
+
   useEffect(() => {
     if (!user) {
       setIsConnected(false);
@@ -48,9 +49,7 @@ export const useChat = () => {
       if (payload.eventType === 'INSERT') {
         const newMessage = payload.new as ChatMessageWithProfile;
         
-        // Update the query cache with the new message
         queryClient.setQueryData(['chat-messages'], (oldMessages: ChatMessageWithProfile[] = []) => {
-          // Check if message already exists to avoid duplicates
           const messageExists = oldMessages.some(msg => msg.id === newMessage.id);
           if (messageExists) {
             return oldMessages;
@@ -59,7 +58,6 @@ export const useChat = () => {
           return [...oldMessages, newMessage];
         });
 
-        // Show toast notification only for messages from other users
         if (newMessage.user_id !== user.id) {
           toast({
             title: `New message from ${newMessage.profiles?.name || 'Someone'}`,
@@ -69,7 +67,6 @@ export const useChat = () => {
           });
         }
       } else if (payload.eventType === 'DELETE') {
-        // Handle message deletion
         const deletedMessage = payload.old;
         queryClient.setQueryData(['chat-messages'], (oldMessages: ChatMessageWithProfile[] = []) => {
           return oldMessages.filter(msg => msg.id !== deletedMessage.id);
@@ -81,7 +78,6 @@ export const useChat = () => {
       setIsConnected(true);
     }
 
-    // Cleanup subscription on unmount
     return () => {
       console.log('Cleaning up real-time chat subscription...');
       if (channel) {
@@ -91,9 +87,6 @@ export const useChat = () => {
     };
   }, [user, queryClient, toast]);
 
-  /**
-   * Sends a new message to the chat
-   */
   const sendMessage = useCallback(async (message: string) => {
     if (!message.trim() || !user) return;
 
@@ -101,6 +94,9 @@ export const useChat = () => {
       console.log('Sending message from user:', user.id, message);
       await chatService.sendMessage(message.trim());
       console.log('Message sent successfully');
+      
+      // Auto-refresh after sending
+      setTimeout(autoRefresh, 100);
     } catch (error) {
       console.error('Error sending message:', error);
       toast({
@@ -109,20 +105,18 @@ export const useChat = () => {
         variant: "destructive",
       });
     }
-  }, [user, toast]);
+  }, [user, toast, autoRefresh]);
 
-  /**
-   * Deletes a message (admin only)
-   */
   const deleteMessage = useCallback(async (messageId: string) => {
-    if (user?.role !== 'admin') return;
-
     try {
       await chatService.deleteMessage(messageId);
       toast({
         title: "Message deleted",
-        description: "The message has been removed from the chat.",
+        description: "Your message has been deleted.",
       });
+      
+      // Auto-refresh after deleting
+      setTimeout(autoRefresh, 100);
     } catch (error) {
       console.error('Error deleting message:', error);
       toast({
@@ -131,11 +125,8 @@ export const useChat = () => {
         variant: "destructive",
       });
     }
-  }, [user, toast]);
+  }, [toast, autoRefresh]);
 
-  /**
-   * Clears all messages from the chat (admin only)
-   */
   const clearChat = useCallback(async () => {
     if (user?.role !== 'admin') return;
 
@@ -156,17 +147,11 @@ export const useChat = () => {
     }
   }, [user, queryClient, toast]);
 
-  /**
-   * Filters messages based on search term
-   */
   const filteredMessages = messages.filter(msg =>
     msg.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (msg.profiles?.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  /**
-   * Force refresh messages from server
-   */
   const refreshMessages = useCallback(async () => {
     try {
       await refetch();
@@ -176,22 +161,17 @@ export const useChat = () => {
   }, [refetch]);
 
   return {
-    // State
     messages: filteredMessages,
     allMessages: messages,
     isLoading,
     error,
     searchTerm,
     isConnected,
-    
-    // Actions
     sendMessage,
     deleteMessage,
     clearChat,
     setSearchTerm,
     refreshMessages,
-    
-    // Computed values
     messageCount: messages.length,
     filteredMessageCount: filteredMessages.length,
     canDelete: user?.role === 'admin',
