@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,7 @@ import { materialService } from '../../services/materialService';
 import { assignmentService, AssignmentWithSubmissions } from '../../services/assignmentService';
 import { attendanceService } from '../../services/attendanceService';
 import { videoConferenceService } from '../../services/videoConferenceService';
-import { persistentStorage } from '../../utils/persistentStorage';
+import { classService, ClassWithProfile } from '../../services/classService';
 import { 
   Calendar, 
   Video, 
@@ -26,7 +27,7 @@ import {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const [upcomingClasses, setUpcomingClasses] = useState<any[]>([]);
+  const [upcomingClasses, setUpcomingClasses] = useState<ClassWithProfile[]>([]);
   const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
   const [recentMaterials, setRecentMaterials] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +37,28 @@ const Dashboard = () => {
     attendanceRate: 95
   });
 
+  // Auto-delete expired classes
+  const cleanupExpiredClasses = async (classes: ClassWithProfile[]) => {
+    const now = new Date();
+    
+    for (const classItem of classes) {
+      const classDateTime = new Date(`${classItem.date} ${classItem.time}`);
+      const classEndTime = new Date(classDateTime.getTime() + (classItem.duration * 60 * 1000));
+      
+      // If class ended more than 1 hour ago, delete it
+      const oneHourAfterEnd = new Date(classEndTime.getTime() + (60 * 60 * 1000));
+      
+      if (now > oneHourAfterEnd) {
+        try {
+          await classService.deleteClass(classItem.id);
+          console.log(`Auto-deleted expired class: ${classItem.title}`);
+        } catch (error) {
+          console.error('Error auto-deleting expired class:', error);
+        }
+      }
+    }
+  };
+
   // Load real data from Supabase
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -44,6 +67,35 @@ const Dashboard = () => {
       try {
         setLoading(true);
         console.log('Loading dashboard data for user:', user.id);
+
+        // Load classes from Supabase
+        const allClasses = await classService.getClasses();
+        console.log('Loaded classes from Supabase:', allClasses);
+        
+        // Auto-cleanup expired classes
+        await cleanupExpiredClasses(allClasses);
+        
+        // Refresh classes after cleanup
+        const classes = await classService.getClasses();
+        
+        // Get upcoming classes (within next 7 days)
+        const now = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+        
+        const upcoming = classes
+          .filter(cls => {
+            const classDate = new Date(`${cls.date} ${cls.time}`);
+            return classDate >= now;
+          })
+          .sort((a, b) => {
+            const dateA = new Date(`${a.date} ${a.time}`);
+            const dateB = new Date(`${b.date} ${b.time}`);
+            return dateA.getTime() - dateB.getTime();
+          })
+          .slice(0, 5);
+        
+        setUpcomingClasses(upcoming);
 
         // Load materials from Supabase
         const materials = await materialService.getMaterials();
@@ -70,7 +122,6 @@ const Dashboard = () => {
         console.log('Loaded assignments:', assignments);
 
         // Get recent assignments (due within next 14 days)
-        const now = new Date();
         const twoWeeksFromNow = new Date();
         twoWeeksFromNow.setDate(now.getDate() + 14);
         
@@ -97,31 +148,9 @@ const Dashboard = () => {
 
         setRecentAssignments(recentAssns);
 
-        // Load classes from persistent storage (as they're not in Supabase yet)
-        const data = persistentStorage.getData();
-        console.log('Persistent storage data:', data);
-        
-        // Get upcoming classes (within next 7 days)
-        const nextWeek = new Date();
-        nextWeek.setDate(now.getDate() + 7);
-        
-        const upcoming = data.scheduledClasses
-          .filter(cls => {
-            const classDate = new Date(`${cls.date} ${cls.time}`);
-            return classDate >= now;
-          })
-          .sort((a, b) => {
-            const dateA = new Date(`${a.date} ${a.time}`);
-            const dateB = new Date(`${b.date} ${b.time}`);
-            return dateA.getTime() - dateB.getTime();
-          })
-          .slice(0, 5);
-        
-        setUpcomingClasses(upcoming);
-
         // Update statistics
         setStatistics({
-          totalClasses: data.scheduledClasses.length,
+          totalClasses: classes.length,
           totalAssignments: assignments.length,
           attendanceRate: 95
         });
@@ -159,14 +188,14 @@ const Dashboard = () => {
     }
   };
 
-  const joinClass = (classItem: any) => {
-    videoConferenceService.joinMeeting(classItem.meetLink);
-    console.log('Joining video meeting:', classItem.meetLink);
+  const joinClass = (classItem: ClassWithProfile) => {
+    videoConferenceService.joinMeeting(classItem.meet_link);
+    console.log('Joining video meeting:', classItem.meet_link);
   };
 
-  const startClass = (classItem: any) => {
-    videoConferenceService.startMeeting(classItem.meetLink);
-    console.log('Starting video meeting:', classItem.meetLink);
+  const startClass = (classItem: ClassWithProfile) => {
+    videoConferenceService.startMeeting(classItem.meet_link);
+    console.log('Starting video meeting:', classItem.meet_link);
   };
 
   const isClassLive = (classDate: string, classTime: string) => {
@@ -279,7 +308,7 @@ const Dashboard = () => {
               <span>{user?.role === 'admin' ? 'Scheduled Classes' : 'Available Classes'}</span>
             </CardTitle>
             <CardDescription>
-              {user?.role === 'admin' ? 'Your scheduled classes' : 'Classes you can join via video conference'}
+              {user?.role === 'admin' ? 'Your scheduled classes from Supabase' : 'Classes you can join via video conference'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -297,6 +326,9 @@ const Dashboard = () => {
                           <div>
                             <h4 className="font-semibold text-gray-900">{classItem.title}</h4>
                             <p className="text-sm text-gray-600">{classItem.description}</p>
+                            <p className="text-xs text-gray-500">
+                              By: {classItem.profiles?.name || 'Unknown'}
+                            </p>
                           </div>
                         </div>
                         {isLive && (
@@ -469,7 +501,7 @@ const Dashboard = () => {
       </div>
 
       {/* Statistics Cards */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-5 gap-6">
         <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -540,6 +572,24 @@ const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
+
+        <Link to="/chat">
+          <Card className="bg-gradient-to-br from-pink-500 to-pink-600 text-white hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-pink-100">Chat</p>
+                  <p className="text-xl font-bold">Discussion</p>
+                </div>
+                <MessageCircle className="h-12 w-12 text-pink-200" />
+              </div>
+              <div className="mt-4 flex items-center space-x-2">
+                <MessageCircle className="h-4 w-4 text-pink-200" />
+                <span className="text-sm text-pink-100">Join conversation</span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </div>
   );
