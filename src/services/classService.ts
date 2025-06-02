@@ -21,7 +21,7 @@ class ClassService {
         .from('classes')
         .select(`
           *,
-          profiles:created_by (
+          profiles!classes_created_by_fkey (
             name,
             role
           )

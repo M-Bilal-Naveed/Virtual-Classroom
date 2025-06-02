@@ -148,7 +148,6 @@ const Chat = () => {
                       key={msg.id}
                       message={msg}
                       showAvatar={showAvatar}
-                      currentUserRole={user?.role}
                       onDelete={deleteMessage}
                     />
                   );

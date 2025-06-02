@@ -32,7 +32,7 @@ class ChatService {
         .from('chat_messages')
         .select(`
           *,
-          profiles:user_id (
+          profiles!chat_messages_user_id_fkey (
             name,
             avatar,
             role
