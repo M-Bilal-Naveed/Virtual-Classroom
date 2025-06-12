@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,9 @@ import { assignmentService, AssignmentWithSubmissions } from '../../services/ass
 import { attendanceService } from '../../services/attendanceService';
 import { videoConferenceService } from '../../services/videoConferenceService';
 import { classService, ClassWithProfile } from '../../services/classService';
+import { eventService } from '../../services/eventService';
+import { reportService } from '../../services/reportService';
+import { announcementService } from '../../services/announcementService';
 import { 
   Calendar, 
   Video, 
@@ -21,7 +25,9 @@ import {
   Download,
   Trash2,
   Eye,
-  ExternalLink
+  ExternalLink,
+  Megaphone,
+  BarChart3
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -29,6 +35,9 @@ const Dashboard = () => {
   const [upcomingClasses, setUpcomingClasses] = useState<ClassWithProfile[]>([]);
   const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
   const [recentMaterials, setRecentMaterials] = useState<any[]>([]);
+  const [recentEvents, setRecentEvents] = useState<any[]>([]);
+  const [recentReports, setRecentReports] = useState<any[]>([]);
+  const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState({
     totalClasses: 0,
@@ -147,6 +156,29 @@ const Dashboard = () => {
 
         setRecentAssignments(recentAssns);
 
+        // Load events from Supabase
+        const events = await eventService.getEvents();
+        const upcomingEvents = events
+          .filter(event => new Date(event.event_date) >= now)
+          .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+          .slice(0, 3);
+        setRecentEvents(upcomingEvents);
+
+        // Load reports from Supabase
+        const reports = await reportService.getReports();
+        const latestReports = reports
+          .sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())
+          .slice(0, 3);
+        setRecentReports(latestReports);
+
+        // Load announcements from Supabase
+        const announcements = await announcementService.getAnnouncements();
+        const activeAnnouncements = announcements
+          .filter(announcement => new Date(announcement.event_date) >= now)
+          .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+          .slice(0, 3);
+        setRecentAnnouncements(activeAnnouncements);
+
         // Update statistics
         setStatistics({
           totalClasses: classes.length,
@@ -206,12 +238,12 @@ const Dashboard = () => {
   };
 
   const quickActions = user?.role === 'admin' ? [
-    { title: 'Schedule Class', icon: Calendar, href: '/schedule', color: 'bg-purple-500' },
+    { title: 'Schedule Class', icon: Calendar, href: '/classes', color: 'bg-purple-500' },
     { title: 'Upload Materials', icon: FolderOpen, href: '/materials', color: 'bg-blue-500' },
     { title: 'Create Assignment', icon: FileText, href: '/assignments', color: 'bg-green-500' },
-    { title: 'View Attendance', icon: Users, href: '/attendance', color: 'bg-orange-500' },
+    { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
   ] : [
-    { title: 'View Classes', icon: Video, href: '/schedule', color: 'bg-purple-500' },
+    { title: 'View Classes', icon: Video, href: '/classes', color: 'bg-purple-500' },
     { title: 'View Assignments', icon: FileText, href: '/assignments', color: 'bg-blue-500' },
     { title: 'Download Materials', icon: FolderOpen, href: '/materials', color: 'bg-green-500' },
     { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
@@ -298,7 +330,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Upcoming Classes */}
         <Card className="bg-gradient-to-br from-white to-blue-50">
           <CardHeader>
@@ -372,12 +404,12 @@ const Dashboard = () => {
                     {user?.role === 'admin' ? 'No classes scheduled' : 'No classes available'}
                   </p>
                   {user?.role === 'admin' && (
-                    <p className="text-sm text-gray-500 mt-2">Create classes in the Schedule section</p>
+                    <p className="text-sm text-gray-500 mt-2">Create classes in the Classes section</p>
                   )}
                 </div>
               )}
             </div>
-            <Link to="/schedule">
+            <Link to="/classes">
               <Button variant="outline" className="w-full mt-4">
                 {user?.role === 'admin' ? 'Manage Classes' : 'View All Classes'}
               </Button>
@@ -437,7 +469,10 @@ const Dashboard = () => {
             </Link>
           </CardContent>
         </Card>
+      </div>
 
+      {/* New Row: Materials, Events, Reports, Announcements */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         {/* Recent Materials */}
         <Card className="bg-gradient-to-br from-white to-purple-50">
           <CardHeader>
@@ -493,6 +528,144 @@ const Dashboard = () => {
             <Link to="/materials">
               <Button variant="outline" className="w-full mt-4">
                 View All Materials
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Recent Events */}
+        <Card className="bg-gradient-to-br from-white to-yellow-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Calendar className="h-5 w-5 text-yellow-600" />
+              <span>Upcoming Events</span>
+            </CardTitle>
+            <CardDescription>Scheduled events and important dates</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentEvents.length > 0 ? (
+                recentEvents.map((event) => (
+                  <div key={event.id} className="p-3 bg-white rounded-lg border">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <Calendar className="h-5 w-5 text-yellow-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{event.title}</h4>
+                        <p className="text-sm text-gray-600">{event.description}</p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(event.event_date).toLocaleDateString()} at {event.start_time}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No upcoming events</p>
+                </div>
+              )}
+            </div>
+            <Link to="/events">
+              <Button variant="outline" className="w-full mt-4">
+                View All Events
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Reports and Announcements Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Recent Reports */}
+        <Card className="bg-gradient-to-br from-white to-indigo-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <BarChart3 className="h-5 w-5 text-indigo-600" />
+              <span>Recent Reports</span>
+            </CardTitle>
+            <CardDescription>Classroom analytics and reports</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentReports.length > 0 ? (
+                recentReports.map((report) => (
+                  <div key={report.id} className="p-3 bg-white rounded-lg border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
+                          <BarChart3 className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900">{report.title}</h4>
+                          <p className="text-sm text-gray-600">
+                            {new Date(report.week_start_date).toLocaleDateString()} - {new Date(report.week_end_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      {report.file_url && (
+                        <Button size="sm" variant="ghost" onClick={() => window.open(report.file_url, '_blank')}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No reports generated yet</p>
+                </div>
+              )}
+            </div>
+            <Link to="/reports">
+              <Button variant="outline" className="w-full mt-4">
+                View All Reports
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Recent Announcements */}
+        <Card className="bg-gradient-to-br from-white to-pink-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Megaphone className="h-5 w-5 text-pink-600" />
+              <span>Active Announcements</span>
+            </CardTitle>
+            <CardDescription>Important announcements and notifications</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {recentAnnouncements.length > 0 ? (
+                recentAnnouncements.map((announcement) => (
+                  <div key={announcement.id} className="p-3 bg-white rounded-lg border">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                        <Megaphone className="h-5 w-5 text-pink-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{announcement.title}</h4>
+                        <p className="text-sm text-gray-600">{announcement.description}</p>
+                        <p className="text-xs text-gray-500">
+                          Event Date: {new Date(announcement.event_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <Megaphone className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">No active announcements</p>
+                </div>
+              )}
+            </div>
+            <Link to="/announcements">
+              <Button variant="outline" className="w-full mt-4">
+                View All Announcements
               </Button>
             </Link>
           </CardContent>

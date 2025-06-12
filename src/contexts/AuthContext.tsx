@@ -63,8 +63,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } catch (error) {
               console.error('Error loading profile:', error);
               setUser(null);
+            } finally {
+              setLoading(false);
             }
-            setLoading(false);
           }, 100);
         } else {
           setUser(null);
@@ -104,8 +105,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await authService.signIn(email, password);
-    } finally {
-      // Don't set loading to false here, let onAuthStateChange handle it
+    } catch (error) {
+      setLoading(false);
+      throw error;
     }
   };
 
@@ -113,8 +115,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await authService.signUp(email, password, name, role);
-    } finally {
-      // Don't set loading to false here, let onAuthStateChange handle it
+    } catch (error) {
+      setLoading(false);
+      throw error;
     }
   };
 

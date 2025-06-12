@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,7 +30,9 @@ import {
   LogOut,
   Calendar, 
   FileText, 
-  Megaphone 
+  Megaphone,
+  MessageCircle,
+  FolderOpen 
 } from 'lucide-react';
 
 const Navigation = () => {
@@ -65,19 +68,22 @@ const Navigation = () => {
   };
 
   const adminMenuItems = [
-    { name: 'Dashboard', href: '/', icon: Home },
+    { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Classes', href: '/classes', icon: Book },
     { name: 'Assignments', href: '/assignments', icon: GraduationCap },
-    { name: 'Users', href: '/users', icon: Settings },
+    { name: 'Materials', href: '/materials', icon: FolderOpen },
+    { name: 'Chat', href: '/chat', icon: MessageCircle },
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Announcements', href: '/announcements', icon: Megaphone },
   ];
 
   const studentMenuItems = [
-    { name: 'Dashboard', href: '/', icon: Home },
+    { name: 'Dashboard', href: '/dashboard', icon: Home },
     { name: 'Classes', href: '/classes', icon: Book },
     { name: 'Assignments', href: '/assignments', icon: GraduationCap },
+    { name: 'Materials', href: '/materials', icon: FolderOpen },
+    { name: 'Chat', href: '/chat', icon: MessageCircle },
     { name: 'Events', href: '/events', icon: Calendar },
     { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Announcements', href: '/announcements', icon: Megaphone },
@@ -86,8 +92,8 @@ const Navigation = () => {
   return (
     <header className="bg-white border-b shadow-sm sticky top-0 z-50">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        <Link to="/" className="text-xl font-semibold text-gray-900">
-          LearnVerse
+        <Link to="/dashboard" className="text-xl font-semibold text-gray-900">
+          Virtual Classroom
         </Link>
 
         {/* Mobile Menu Button */}
@@ -101,7 +107,7 @@ const Navigation = () => {
             <SheetHeader>
               <SheetTitle>Menu</SheetTitle>
               <SheetDescription>
-                Navigate through LearnVerse
+                Navigate through Virtual Classroom
               </SheetDescription>
             </SheetHeader>
             <div className="mt-4">
