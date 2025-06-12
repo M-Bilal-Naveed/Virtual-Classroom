@@ -1,4 +1,3 @@
-
 export interface VideoMeeting {
   id: string;
   roomUrl: string;
@@ -9,7 +8,7 @@ export interface VideoMeeting {
   isLocked: boolean;
 }
 
-class VideoConferenceService {
+export class VideoConferenceService {
   private generateMeetingId(): string {
     // Generate a unique meeting ID
     return `classroom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -70,13 +69,17 @@ class VideoConferenceService {
   }
 
   // Join meeting function
-  joinMeeting(meetingUrl: string): void {
-    window.open(meetingUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+  joinMeeting(meetLink: string): void {
+    console.log('Joining meeting:', meetLink);
+    // Open in the same tab instead of new window
+    window.location.href = meetLink;
   }
 
   // Start meeting for host
-  startMeeting(meetingUrl: string): void {
-    window.open(meetingUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+  startMeeting(meetLink: string): void {
+    console.log('Starting meeting:', meetLink);
+    // Open in the same tab instead of new window
+    window.location.href = meetLink;
   }
 }
 

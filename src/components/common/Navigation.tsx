@@ -1,126 +1,192 @@
-
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
-import { useAuth } from '../../contexts/AuthContext';
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useToast } from "@/hooks/use-toast"
 import { 
+  Menu, 
+  Home, 
+  Book, 
   GraduationCap, 
-  Calendar, 
-  Video, 
-  FileText, 
-  FolderOpen, 
-  Users, 
-  MessageCircle,
+  Settings, 
   LogOut,
-  Settings
+  Calendar, 
+  FileText, 
+  Megaphone 
 } from 'lucide-react';
 
 const Navigation = () => {
   const { user, logout } = useAuth();
-  const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: GraduationCap },
-    ...(user?.role === 'admin' ? [
-      { href: '/schedule', label: 'Schedule Class', icon: Calendar },
-    ] : []),
-    { href: '/assignments', label: 'Assignments', icon: FileText },
-    { href: '/materials', label: 'Materials', icon: FolderOpen },
-    { href: '/attendance', label: 'Attendance', icon: Users },
-    { href: '/chat', label: 'Chat', icon: MessageCircle },
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+      toast({
+        title: "Logged out successfully!",
+        description: "You have been logged out of your account.",
+      })
+    } catch (error) {
+      console.error("Logout failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Logout failed!",
+        description: "There was an error logging you out. Please try again.",
+      })
+    }
+  };
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+  };
+
+  const adminMenuItems = [
+    { name: 'Dashboard', href: '/', icon: Home },
+    { name: 'Classes', href: '/classes', icon: Book },
+    { name: 'Assignments', href: '/assignments', icon: GraduationCap },
+    { name: 'Users', href: '/users', icon: Settings },
+    { name: 'Events', href: '/events', icon: Calendar },
+    { name: 'Reports', href: '/reports', icon: FileText },
+    { name: 'Announcements', href: '/announcements', icon: Megaphone },
   ];
 
-  const isActive = (href: string) => location.pathname === href;
+  const studentMenuItems = [
+    { name: 'Dashboard', href: '/', icon: Home },
+    { name: 'Classes', href: '/classes', icon: Book },
+    { name: 'Assignments', href: '/assignments', icon: GraduationCap },
+    { name: 'Events', href: '/events', icon: Calendar },
+    { name: 'Reports', href: '/reports', icon: FileText },
+    { name: 'Announcements', href: '/announcements', icon: Megaphone },
+  ];
 
   return (
-    <nav className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link to="/dashboard" className="flex items-center space-x-2">
-              <GraduationCap className="h-8 w-8 text-purple-600" />
-              <span className="text-xl font-bold text-gray-900">Virtual Classroom</span>
-            </Link>
-            
-            <div className="hidden md:flex space-x-4">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    to={item.href}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive(item.href)
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
+    <header className="bg-white border-b shadow-sm sticky top-0 z-50">
+      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+        <Link to="/" className="text-xl font-semibold text-gray-900">
+          LearnVerse
+        </Link>
 
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600 hidden sm:block">
-                {user?.role === 'admin' ? 'Teacher' : 'Student'}
-              </span>
-              <div className={`w-2 h-2 rounded-full ${
-                user?.role === 'admin' ? 'bg-green-500' : 'bg-blue-500'
-              }`}></div>
+        {/* Mobile Menu Button */}
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="ghost" className="md:hidden" onClick={toggleMenu}>
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="sm:w-64">
+            <SheetHeader>
+              <SheetTitle>Menu</SheetTitle>
+              <SheetDescription>
+                Navigate through LearnVerse
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-4">
+              {(user?.role === 'admin' ? adminMenuItems : studentMenuItems).map((item) => (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className="flex items-center space-x-2 py-2 px-4 rounded-md hover:bg-gray-100 transition-colors block"
+                  onClick={closeMenu}
+                >
+                  <item.icon className="h-4 w-4 text-gray-600" />
+                  <span>{item.name}</span>
+                </Link>
+              ))}
             </div>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={user?.avatar} alt={user?.name} />
-                    <AvatarFallback className="bg-purple-100 text-purple-700">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-white/95 backdrop-blur-sm">
-                <div className="flex items-center space-x-2 p-2">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.avatar} alt={user?.name} />
-                    <AvatarFallback className="bg-purple-100 text-purple-700">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium">{user?.name}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
-                  </div>
-                </div>
+            <SheetHeader>
+              <SheetTitle>Account</SheetTitle>
+              <SheetDescription>
+                Manage your account settings and preferences
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-4">
+              <Button variant="ghost" className="w-full justify-start" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Desktop Menu */}
+        <nav className="hidden md:flex items-center space-x-6">
+          {(user?.role === 'admin' ? adminMenuItems : studentMenuItems).map((item) => (
+            <Link
+              key={item.name}
+              to={item.href}
+              className="text-gray-700 hover:text-gray-900 transition-colors flex items-center space-x-2"
+            >
+              <item.icon className="h-4 w-4" />
+              <span>{item.name}</span>
+            </Link>
+          ))}
+        </nav>
+
+        {/* Account Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="ml-4 h-8 w-8 p-0 aspect-square">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.avatar || ""} alt={user?.name || "Avatar"} />
+                <AvatarFallback>{user?.name?.charAt(0).toUpperCase() || "U"}</AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <Link to="/profile" className="block">
+                Profile
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Link to="/settings" className="block">
+                Settings
+              </Link>
+            </DropdownMenuItem>
+            {user?.role === 'admin' && (
+              <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  <Link to="/users" className="block">
+                    Manage Users
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={logout} className="text-red-600">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+              </>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </nav>
+    </header>
   );
 };
 

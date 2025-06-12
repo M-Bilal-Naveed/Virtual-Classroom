@@ -105,6 +105,108 @@ export type Database = {
         }
         Relationships: []
       }
+      classroom_reports: {
+        Row: {
+          file_url: string | null
+          generated_at: string
+          generated_by: string
+          id: string
+          report_data: Json
+          title: string
+          week_end_date: string
+          week_start_date: string
+        }
+        Insert: {
+          file_url?: string | null
+          generated_at?: string
+          generated_by: string
+          id?: string
+          report_data: Json
+          title: string
+          week_end_date: string
+          week_start_date: string
+        }
+        Update: {
+          file_url?: string | null
+          generated_at?: string
+          generated_by?: string
+          id?: string
+          report_data?: Json
+          title?: string
+          week_end_date?: string
+          week_start_date?: string
+        }
+        Relationships: []
+      }
+      event_announcements: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string
+          event_date: string
+          id: string
+          image_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description: string
+          event_date: string
+          id?: string
+          image_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string
+          event_date?: string
+          id?: string
+          image_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          end_time: string
+          event_date: string
+          id: string
+          start_time: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_time: string
+          event_date: string
+          id?: string
+          start_time: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_time?: string
+          event_date?: string
+          id?: string
+          start_time?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       materials: {
         Row: {
           category: string | null
@@ -226,7 +328,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_expired_announcements: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
