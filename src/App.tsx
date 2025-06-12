@@ -17,6 +17,7 @@ import ClassroomReports from './components/reports/ClassroomReports';
 import EventAnnouncements from './components/announcements/EventAnnouncements';
 import Chat from './components/chat/Chat';
 import Submissions from './components/submissions/Submissions';
+import Profile from './components/profile/Profile';
 
 const queryClient = new QueryClient();
 
@@ -180,6 +181,17 @@ const AppContent = () => {
               <Navigation />
               <main className="pt-16">
                 <Chat />
+              </main>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <main className="pt-16">
+                <Profile />
               </main>
             </ProtectedRoute>
           }

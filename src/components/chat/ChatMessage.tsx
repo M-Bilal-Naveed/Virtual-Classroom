@@ -33,6 +33,18 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     return message.profiles?.role || 'student';
   };
 
+  const getUserName = () => {
+    // If it's the current user's message, show "You"
+    if (isOwnMessage) return 'You';
+    
+    // Show the actual profile name if available
+    if (message.profiles?.name) return message.profiles.name;
+    
+    // Fallback to showing "Student" or "Teacher" based on role
+    const role = getUserRole();
+    return role === 'admin' ? 'Teacher' : 'Student';
+  };
+
   const getMessageBgClass = () => {
     if (isOwnMessage) {
       return 'bg-blue-500 text-white ml-auto';
@@ -73,7 +85,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           {showAvatar && (
             <div className={`flex items-center space-x-2 mb-1 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}>
               <span className="text-xs font-medium text-gray-600">
-                {isOwnMessage ? 'You' : (message.profiles?.name || 'Unknown User')}
+                {getUserName()}
               </span>
               
               {!isOwnMessage && (

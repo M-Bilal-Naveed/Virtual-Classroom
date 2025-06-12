@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { announcementService } from '../../services/announcementService';
-import { Megaphone, Calendar, Plus, Edit2, Trash2, Upload } from 'lucide-react';
+import { Megaphone, Plus, Edit2, Trash2, Calendar } from 'lucide-react';
 
 const EventAnnouncements = () => {
   const { user } = useAuth();
@@ -20,12 +20,11 @@ const EventAnnouncements = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    event_date: '',
-    image_url: ''
+    event_date: ''
   });
 
   const { data: announcements = [], isLoading, refetch } = useQuery({
-    queryKey: ['event-announcements'],
+    queryKey: ['announcements'],
     queryFn: () => announcementService.getAnnouncements(),
     enabled: !!user,
   });
@@ -48,7 +47,7 @@ const EventAnnouncements = () => {
         });
       }
 
-      setFormData({ title: '', description: '', event_date: '', image_url: '' });
+      setFormData({ title: '', description: '', event_date: '' });
       setShowForm(false);
       setEditingAnnouncement(null);
       refetch();
@@ -65,8 +64,7 @@ const EventAnnouncements = () => {
     setFormData({
       title: announcement.title,
       description: announcement.description || '',
-      event_date: announcement.event_date,
-      image_url: announcement.image_url || ''
+      event_date: announcement.event_date
     });
     setEditingAnnouncement(announcement);
     setShowForm(true);
@@ -89,17 +87,10 @@ const EventAnnouncements = () => {
     }
   };
 
-  const isEventToday = (eventDate: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    return eventDate === today;
-  };
-
-  const isEventUpcoming = (eventDate: string) => {
-    const today = new Date();
-    const event = new Date(eventDate);
-    const diffTime = event.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays <= 7 && diffDays > 0;
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingAnnouncement(null);
+    setFormData({ title: '', description: '', event_date: '' });
   };
 
   if (isLoading) {
@@ -120,28 +111,28 @@ const EventAnnouncements = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Event Announcements</h1>
-          <p className="text-gray-600">Stay updated with upcoming events and announcements</p>
+          <p className="text-gray-600">Manage and view important announcements</p>
         </div>
         {user?.role === 'admin' && (
           <Button 
             onClick={() => setShowForm(true)}
-            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600"
+            className="bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
           >
             <Plus className="h-4 w-4 mr-2" />
-            New Announcement
+            Add New Announcement
           </Button>
         )}
       </div>
 
       {showForm && user?.role === 'admin' && (
-        <Card className="mb-8 bg-gradient-to-br from-orange-50 to-red-50">
+        <Card className="mb-8 bg-gradient-to-br from-purple-50 to-blue-50">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <Megaphone className="h-5 w-5 text-orange-600" />
-              <span>{editingAnnouncement ? 'Edit Announcement' : 'New Announcement'}</span>
+              <Megaphone className="h-5 w-5 text-purple-600" />
+              <span>{editingAnnouncement ? 'Edit Announcement' : 'Add New Announcement'}</span>
             </CardTitle>
             <CardDescription>
-              {editingAnnouncement ? 'Update announcement details' : 'Create a new event announcement with image'}
+              {editingAnnouncement ? 'Update announcement details' : 'Create a new announcement for students'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -150,7 +141,7 @@ const EventAnnouncements = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Announcement Title</label>
                   <Input
-                    placeholder="e.g., Annual Sports Day 2024"
+                    placeholder="e.g., Important: Exam Schedule Change"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     required
@@ -165,20 +156,12 @@ const EventAnnouncements = () => {
                     required
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Image URL (Optional)</label>
-                  <Input
-                    placeholder="https://example.com/image.jpg"
-                    value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                  />
-                </div>
               </div>
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Description</label>
                   <Textarea
-                    placeholder="Event details, time, venue, and other important information"
+                    placeholder="Announcement description and details"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={6}
@@ -192,11 +175,7 @@ const EventAnnouncements = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => {
-                      setShowForm(false);
-                      setEditingAnnouncement(null);
-                      setFormData({ title: '', description: '', event_date: '', image_url: '' });
-                    }}
+                    onClick={resetForm}
                   >
                     Cancel
                   </Button>
@@ -209,38 +188,15 @@ const EventAnnouncements = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {announcements.map((announcement) => (
-          <Card key={announcement.id} className="hover:shadow-lg transition-shadow overflow-hidden">
-            {announcement.image_url && (
-              <div className="h-48 bg-cover bg-center" style={{ backgroundImage: `url(${announcement.image_url})` }}>
-                <div className="h-full bg-black bg-opacity-40 flex items-end p-4">
-                  <div className="text-white">
-                    {isEventToday(announcement.event_date) && (
-                      <Badge className="bg-red-500 text-white mb-2">Today!</Badge>
-                    )}
-                    {isEventUpcoming(announcement.event_date) && !isEventToday(announcement.event_date) && (
-                      <Badge className="bg-orange-500 text-white mb-2">Upcoming</Badge>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
+          <Card key={announcement.id} className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-lg">{announcement.title}</CardTitle>
-                  <div className="flex items-center space-x-2 mt-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm text-gray-600">
-                      {new Date(announcement.event_date).toLocaleDateString()}
-                    </span>
-                    {!announcement.image_url && isEventToday(announcement.event_date) && (
-                      <Badge className="bg-red-500 text-white ml-2">Today!</Badge>
-                    )}
-                    {!announcement.image_url && isEventUpcoming(announcement.event_date) && !isEventToday(announcement.event_date) && (
-                      <Badge className="bg-orange-500 text-white ml-2">Upcoming</Badge>
-                    )}
-                  </div>
+                  <Badge variant="outline" className="mt-2 flex items-center space-x-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>{new Date(announcement.event_date).toLocaleDateString()}</span>
+                  </Badge>
                 </div>
                 {user?.role === 'admin' && (
                   <div className="flex space-x-2">
@@ -255,7 +211,12 @@ const EventAnnouncements = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600">{announcement.description}</p>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">{announcement.description}</p>
+                <div className="text-xs text-gray-500">
+                  Created: {new Date(announcement.created_at).toLocaleDateString()}
+                </div>
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -265,10 +226,10 @@ const EventAnnouncements = () => {
         <Card className="text-center py-12">
           <CardContent>
             <Megaphone className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No announcements</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No announcements yet</h3>
             <p className="text-gray-600">
               {user?.role === 'admin' 
-                ? 'Create your first event announcement' 
+                ? 'Get started by adding your first announcement' 
                 : 'Check back later for new announcements'
               }
             </p>

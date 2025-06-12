@@ -85,6 +85,22 @@ class ReportService {
     return data;
   }
 
+  async deleteReport(reportId: string): Promise<void> {
+    console.log('Deleting report:', reportId);
+    
+    const { error } = await supabase
+      .from('classroom_reports')
+      .delete()
+      .eq('id', reportId);
+
+    if (error) {
+      console.error('Error deleting report:', error);
+      throw new Error(error.message);
+    }
+
+    console.log('Report deleted successfully');
+  }
+
   async downloadReport(reportId: string): Promise<string> {
     console.log('Downloading report:', reportId);
     

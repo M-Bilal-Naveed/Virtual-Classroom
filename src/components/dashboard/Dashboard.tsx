@@ -12,6 +12,7 @@ import { classService, ClassWithProfile } from '../../services/classService';
 import { eventService } from '../../services/eventService';
 import { reportService } from '../../services/reportService';
 import { announcementService } from '../../services/announcementService';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Calendar, 
   Video, 
@@ -27,11 +28,13 @@ import {
   Eye,
   ExternalLink,
   Megaphone,
-  BarChart3
+  BarChart3,
+  UserCheck
 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [upcomingClasses, setUpcomingClasses] = useState<ClassWithProfile[]>([]);
   const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
   const [recentMaterials, setRecentMaterials] = useState<any[]>([]);
@@ -204,9 +207,35 @@ const Dashboard = () => {
     try {
       await materialService.deleteMaterial(materialId);
       setRecentMaterials(prev => prev.filter(m => m.id !== materialId));
-      console.log('Material deleted successfully');
+      toast({
+        title: "Material deleted successfully",
+        description: "The material has been removed from the database.",
+      });
     } catch (error) {
       console.error('Error deleting material:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete material. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    try {
+      await reportService.deleteReport(reportId);
+      setRecentReports(prev => prev.filter(r => r.id !== reportId));
+      toast({
+        title: "Report deleted successfully",
+        description: "The report has been removed from the database.",
+      });
+    } catch (error) {
+      console.error('Error deleting report:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete report. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -239,14 +268,21 @@ const Dashboard = () => {
 
   const quickActions = user?.role === 'admin' ? [
     { title: 'Schedule Class', icon: Calendar, href: '/classes', color: 'bg-purple-500' },
-    { title: 'Upload Materials', icon: FolderOpen, href: '/materials', color: 'bg-blue-500' },
     { title: 'Create Assignment', icon: FileText, href: '/assignments', color: 'bg-green-500' },
     { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
+    { title: 'Upload Materials', icon: FolderOpen, href: '/materials', color: 'bg-blue-500' },
   ] : [
     { title: 'View Classes', icon: Video, href: '/classes', color: 'bg-purple-500' },
     { title: 'View Assignments', icon: FileText, href: '/assignments', color: 'bg-blue-500' },
-    { title: 'Download Materials', icon: FolderOpen, href: '/materials', color: 'bg-green-500' },
     { title: 'Chat', icon: MessageCircle, href: '/chat', color: 'bg-orange-500' },
+    { title: 'Download Materials', icon: FolderOpen, href: '/materials', color: 'bg-green-500' },
+  ];
+
+  const secondaryActions = [
+    { title: 'Events', icon: Calendar, href: '/events', color: 'bg-yellow-500' },
+    { title: 'Reports', icon: BarChart3, href: '/reports', color: 'bg-indigo-500' },
+    { title: 'Announcements', icon: Megaphone, href: '/announcements', color: 'bg-pink-500' },
+    { title: 'Attendance', icon: UserCheck, href: '/attendance', color: 'bg-teal-500' },
   ];
 
   const getFileIcon = (fileType: string) => {
@@ -313,6 +349,27 @@ const Dashboard = () => {
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {quickActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link key={action.title} to={action.href}>
+                <Card className="hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1 cursor-pointer bg-gradient-to-br from-white to-gray-50">
+                  <CardContent className="p-6 text-center">
+                    <div className={`${action.color} w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3`}>
+                      <Icon className="h-6 w-6 text-white" />
+                    </div>
+                    <h3 className="font-semibold text-gray-900">{action.title}</h3>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Secondary Actions */}
+      <div className="mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {secondaryActions.map((action) => {
             const Icon = action.icon;
             return (
               <Link key={action.title} to={action.href}>
@@ -480,7 +537,7 @@ const Dashboard = () => {
               <FolderOpen className="h-5 w-5 text-purple-600" />
               <span>Recent Materials</span>
             </CardTitle>
-            <CardDescription>Recently uploaded course materials from Supabase</CardDescription>
+            <CardDescription>Recently uploaded course materials</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -497,11 +554,6 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="flex space-x-2">
-                      {material.webViewLink && (
-                        <Button size="sm" variant="ghost" onClick={() => window.open(material.webViewLink, '_blank')}>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      )}
                       <Button size="sm" variant="ghost" onClick={() => window.open(material.downloadUrl, '_blank')}>
                         <Download className="h-4 w-4" />
                       </Button>
@@ -579,7 +631,7 @@ const Dashboard = () => {
 
       {/* Reports and Announcements Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Recent Reports */}
+        {/* Recent Reports - Enhanced with delete functionality */}
         <Card className="bg-gradient-to-br from-white to-indigo-50">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
@@ -605,11 +657,23 @@ const Dashboard = () => {
                           </p>
                         </div>
                       </div>
-                      {report.file_url && (
-                        <Button size="sm" variant="ghost" onClick={() => window.open(report.file_url, '_blank')}>
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <div className="flex space-x-2">
+                        {report.file_url && (
+                          <Button size="sm" variant="ghost" onClick={() => window.open(report.file_url, '_blank')}>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {user?.role === 'admin' && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => handleDeleteReport(report.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))

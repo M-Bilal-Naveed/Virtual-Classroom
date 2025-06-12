@@ -9,7 +9,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { eventService } from '../../services/eventService';
-import { Calendar, Clock, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, Clock, Plus, Edit2, Trash2, Upload, Image } from 'lucide-react';
 
 const EventCalendar = () => {
   const { user } = useAuth();
@@ -17,6 +17,8 @@ const EventCalendar = () => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -30,6 +32,18 @@ const EventCalendar = () => {
     queryFn: () => eventService.getEvents(),
     enabled: !!user,
   });
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedImage(file);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +64,8 @@ const EventCalendar = () => {
       }
 
       setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '' });
+      setSelectedImage(null);
+      setImagePreview(null);
       setShowForm(false);
       setEditingEvent(null);
       refetch();
@@ -89,6 +105,14 @@ const EventCalendar = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingEvent(null);
+    setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '' });
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   if (isLoading) {
@@ -182,9 +206,36 @@ const EventCalendar = () => {
                     placeholder="Event description and details"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={6}
+                    rows={4}
                   />
                 </div>
+                
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Event Image</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                      id="event-image"
+                    />
+                    <label htmlFor="event-image" className="cursor-pointer">
+                      {imagePreview ? (
+                        <div className="text-center">
+                          <img src={imagePreview} alt="Preview" className="mx-auto h-24 w-24 object-cover rounded-lg mb-2" />
+                          <p className="text-sm text-gray-600">Click to change image</p>
+                        </div>
+                      ) : (
+                        <div className="text-center">
+                          <Upload className="mx-auto h-8 w-8 text-gray-400" />
+                          <p className="text-sm text-gray-600">Click to upload image</p>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
+                
                 <div className="flex space-x-4 pt-4">
                   <Button type="submit" className="flex-1">
                     {editingEvent ? 'Update Event' : 'Create Event'}
@@ -192,11 +243,7 @@ const EventCalendar = () => {
                   <Button 
                     type="button" 
                     variant="outline" 
-                    onClick={() => {
-                      setShowForm(false);
-                      setEditingEvent(null);
-                      setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '' });
-                    }}
+                    onClick={resetForm}
                   >
                     Cancel
                   </Button>
