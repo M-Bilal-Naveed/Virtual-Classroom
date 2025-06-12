@@ -1,13 +1,13 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
-import AuthProvider from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
 import Navigation from './components/common/Navigation';
-import Dashboard from './components/Dashboard';
+import Dashboard from './components/dashboard/Dashboard';
 import Materials from './components/materials/Materials';
 import Assignments from './components/assignments/Assignments';
-import Submissions from './components/submissions/Submissions';
 import ClassScheduler from './components/classes/ClassScheduler';
 import StudentClassView from './components/classes/StudentClassView';
 import LiveClass from './components/classes/LiveClass';
@@ -31,7 +31,6 @@ function App() {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/materials" element={<Materials />} />
                 <Route path="/assignments" element={<Assignments />} />
-                <Route path="/submissions/:assignmentId" element={<Submissions />} />
                 <Route path="/classes" element={<ClassScheduler />} />
                 <Route path="/student-classes" element={<StudentClassView />} />
                 <Route path="/live-class/:classId" element={<LiveClass />} />
