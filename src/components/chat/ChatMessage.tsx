@@ -40,7 +40,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     // Show the actual profile name if available
     if (message.profiles?.name) return message.profiles.name;
     
-    // Fallback to showing "Student" or "Teacher" based on role
+    // Fallback to showing role
     const role = getUserRole();
     return role === 'admin' ? 'Teacher' : 'Student';
   };

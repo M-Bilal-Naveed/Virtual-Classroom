@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { attendanceService } from '../../services/attendanceService';
 import { 
   Users, 
   Calendar, 
@@ -16,7 +17,8 @@ import {
   Search,
   Filter,
   Download,
-  BarChart3
+  BarChart3,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface AttendanceRecord {
@@ -171,36 +173,39 @@ const Attendance = () => {
   });
 
   const exportAttendance = () => {
-    const csvData = [
-      ['Student Name', 'Email', 'Class', 'Date', 'Status', 'Join Time', 'Leave Time'],
-      ...filteredRecords.map(record => [
-        record.studentName,
-        record.studentEmail,
-        record.className,
-        new Date(record.date).toLocaleDateString(),
-        record.status,
-        record.joinTime || 'N/A',
-        record.leaveTime || 'N/A'
-      ])
-    ];
+    // Convert records to the format expected by attendanceService
+    const serviceRecords = filteredRecords.map(record => ({
+      userId: record.studentId,
+      userName: record.studentName,
+      classId: record.classId,
+      className: record.className,
+      timestamp: new Date(record.date),
+      status: record.status as 'present' | 'absent' | 'late'
+    }));
 
-    const csvContent = csvData.map(row => 
-      row.map(field => `"${field}"`).join(',')
-    ).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `attendance_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    attendanceService.downloadAttendanceExcel(serviceRecords, 'attendance_report');
 
     toast({
       title: "Export successful",
-      description: "Attendance data has been exported to CSV file.",
+      description: "Attendance data has been exported to Excel file.",
+    });
+  };
+
+  const downloadExcelSheet = () => {
+    const serviceRecords = attendanceRecords.map(record => ({
+      userId: record.studentId,
+      userName: record.studentName,
+      classId: record.classId,
+      className: record.className,
+      timestamp: new Date(record.date),
+      status: record.status as 'present' | 'absent' | 'late'
+    }));
+
+    attendanceService.downloadAttendanceExcel(serviceRecords, 'full_attendance_report');
+
+    toast({
+      title: "Download Complete",
+      description: "Complete attendance Excel sheet has been downloaded.",
     });
   };
 
@@ -273,6 +278,14 @@ const Attendance = () => {
           </Card>
         </div>
 
+        {/* Download Excel Button for Students */}
+        <div className="mb-6 flex justify-end">
+          <Button onClick={downloadExcelSheet} className="bg-green-600 hover:bg-green-700">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Download My Attendance (Excel)
+          </Button>
+        </div>
+
         {/* Recent Attendance */}
         <Card>
           <CardHeader>
@@ -315,10 +328,16 @@ const Attendance = () => {
           <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
           <p className="text-gray-600">Track and manage student attendance</p>
         </div>
-        <Button onClick={exportAttendance} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex space-x-3">
+          <Button onClick={downloadExcelSheet} className="bg-green-600 hover:bg-green-700">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Download Excel Sheet
+          </Button>
+          <Button onClick={exportAttendance} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Export Filtered CSV
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">

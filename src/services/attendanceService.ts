@@ -75,11 +75,11 @@ class AttendanceService {
     const csvContent = [
       headers.join(','),
       ...records.map(record => [
-        record.userName,
-        record.className,
-        record.timestamp.toLocaleDateString(),
-        record.timestamp.toLocaleTimeString(),
-        record.status
+        `"${record.userName}"`,
+        `"${record.className}"`,
+        `"${record.timestamp.toLocaleDateString()}"`,
+        `"${record.timestamp.toLocaleTimeString()}"`,
+        `"${record.status}"`
       ].join(','))
     ].join('\n');
     
@@ -88,12 +88,48 @@ class AttendanceService {
 
   downloadAttendanceSheet(records: AttendanceRecord[], filename: string = 'attendance'): void {
     const csvContent = this.generateAttendanceSheet(records);
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.style.visibility = 'hidden';
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }
+
+  // Enhanced Excel-like download with better formatting
+  downloadAttendanceExcel(records: AttendanceRecord[], filename: string = 'attendance_report'): void {
+    const headers = ['Student Name', 'Class Name', 'Date', 'Time', 'Status', 'Day of Week'];
+    
+    const csvContent = [
+      headers.join(','),
+      ...records.map(record => {
+        const date = record.timestamp;
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' });
+        
+        return [
+          `"${record.userName}"`,
+          `"${record.className}"`,
+          `"${date.toLocaleDateString()}"`,
+          `"${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"`,
+          `"${record.status.toUpperCase()}"`,
+          `"${dayOfWeek}"`
+        ].join(',');
+      })
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.style.visibility = 'hidden';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   }
 }
