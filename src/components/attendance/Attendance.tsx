@@ -19,45 +19,20 @@ import {
   BarChart3
 } from 'lucide-react';
 
-interface AttendanceRecord {
-  id: string;
-  studentId: string;
-  studentName: string;
-  studentEmail: string;
-  classId: string;
-  className: string;
-  date: string;
-  status: 'present' | 'absent' | 'late';
-  joinTime?: string;
-  leaveTime?: string;
-}
-
-interface ClassSession {
-  id: string;
-  title: string;
-  date: string;
-  time: string;
-  duration: number;
-  totalStudents: number;
-  presentCount: number;
-  absentCount: number;
-  lateCount: number;
-}
-
 const Attendance = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedClass, setSelectedClass] = useState('all');
-  const [realAttendanceRecords, setRealAttendanceRecords] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
 
   // Load real attendance data from localStorage
   useEffect(() => {
     const loadAttendanceData = async () => {
       try {
         const records = await attendanceService.getAllAttendance();
-        setRealAttendanceRecords(records);
+        setAttendanceRecords(records);
       } catch (error) {
         console.error('Error loading attendance data:', error);
       }
@@ -65,91 +40,6 @@ const Attendance = () => {
     
     loadAttendanceData();
   }, []);
-
-  const [classSessions] = useState<ClassSession[]>([
-    {
-      id: '1',
-      title: 'Mathematics - Calculus',
-      date: '2024-01-15',
-      time: '10:00 AM',
-      duration: 60,
-      totalStudents: 25,
-      presentCount: 22,
-      absentCount: 2,
-      lateCount: 1
-    },
-    {
-      id: '2',
-      title: 'Physics - Mechanics',
-      date: '2024-01-14',
-      time: '2:00 PM',
-      duration: 90,
-      totalStudents: 25,
-      presentCount: 24,
-      absentCount: 1,
-      lateCount: 0
-    },
-    {
-      id: '3',
-      title: 'Chemistry - Organic',
-      date: '2024-01-13',
-      time: '11:00 AM',
-      duration: 75,
-      totalStudents: 25,
-      presentCount: 20,
-      absentCount: 3,
-      lateCount: 2
-    }
-  ]);
-
-  const [attendanceRecords] = useState<AttendanceRecord[]>([
-    {
-      id: '1',
-      studentId: '1',
-      studentName: 'Alice Johnson',
-      studentEmail: 'alice@university.edu',
-      classId: '1',
-      className: 'Mathematics - Calculus',
-      date: '2024-01-15',
-      status: 'present',
-      joinTime: '10:02 AM',
-      leaveTime: '11:00 AM'
-    },
-    {
-      id: '2',
-      studentId: '2',
-      studentName: 'Bob Wilson',
-      studentEmail: 'bob@university.edu',
-      classId: '1',
-      className: 'Mathematics - Calculus',
-      date: '2024-01-15',
-      status: 'late',
-      joinTime: '10:15 AM',
-      leaveTime: '11:00 AM'
-    },
-    {
-      id: '3',
-      studentId: '3',
-      studentName: 'Carol Davis',
-      studentEmail: 'carol@university.edu',
-      classId: '1',
-      className: 'Mathematics - Calculus',
-      date: '2024-01-15',
-      status: 'absent'
-    },
-    {
-      id: '4',
-      studentId: '1',
-      studentName: 'Alice Johnson',
-      studentEmail: 'alice@university.edu',
-      classId: '2',
-      className: 'Physics - Mechanics',
-      date: '2024-01-14',
-      status: 'present',
-      joinTime: '2:00 PM',
-      leaveTime: '3:30 PM'
-    }
-  ]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -177,26 +67,18 @@ const Attendance = () => {
     return total > 0 ? Math.round((present / total) * 100) : 0;
   };
 
+  // Get unique classes from attendance records
+  const uniqueClasses = [...new Set(attendanceRecords.map(record => record.className))];
+
   const filteredRecords = attendanceRecords.filter(record => {
-    const matchesSearch = record.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.studentEmail.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDate = !selectedDate || record.date === selectedDate;
-    const matchesClass = selectedClass === 'all' || record.classId === selectedClass;
+    const matchesSearch = record.userName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDate = !selectedDate || record.timestamp.toDateString() === new Date(selectedDate).toDateString();
+    const matchesClass = selectedClass === 'all' || record.className === selectedClass;
     return matchesSearch && matchesDate && matchesClass;
   });
 
   const exportAttendance = () => {
-    // Convert records to the format expected by attendanceService
-    const serviceRecords = filteredRecords.map(record => ({
-      userId: record.studentId,
-      userName: record.studentName,
-      classId: record.classId,
-      className: record.className,
-      timestamp: new Date(record.date),
-      status: record.status as 'present' | 'absent' | 'late'
-    }));
-
-    attendanceService.downloadAttendanceExcel(serviceRecords, 'filtered_attendance_report');
+    attendanceService.downloadAttendanceExcel(filteredRecords, 'filtered_attendance_report');
 
     toast({
       title: "Export successful",
@@ -206,8 +88,8 @@ const Attendance = () => {
 
   if (user?.role !== 'admin') {
     // Student view - show their attendance summary
-    const userAttendance = attendanceRecords.filter(record => record.studentId === user?.id);
-    const totalClasses = classSessions.length;
+    const userAttendance = attendanceRecords.filter(record => record.userId === user?.id);
+    const totalClasses = uniqueClasses.length;
     const attendedClasses = userAttendance.filter(record => record.status === 'present' || record.status === 'late').length;
     const attendanceRate = calculateAttendanceRate(attendedClasses, totalClasses);
 
@@ -281,32 +163,43 @@ const Attendance = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {userAttendance.map((record) => (
-                <div key={record.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    {getStatusIcon(record.status)}
-                    <div>
-                      <h4 className="font-medium">{record.className}</h4>
-                      <p className="text-sm text-gray-600">{new Date(record.date).toLocaleDateString()}</p>
+              {userAttendance.length > 0 ? (
+                userAttendance.map((record, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      {getStatusIcon(record.status)}
+                      <div>
+                        <h4 className="font-medium">{record.className}</h4>
+                        <p className="text-sm text-gray-600">{record.timestamp.toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-sm text-gray-600">
+                        <span>{record.timestamp.toLocaleTimeString()}</span>
+                      </div>
+                      {getStatusBadge(record.status)}
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
-                    {record.joinTime && (
-                      <div className="text-sm text-gray-600">
-                        <span>Joined: {record.joinTime}</span>
-                        {record.leaveTime && <span> - Left: {record.leaveTime}</span>}
-                      </div>
-                    )}
-                    {getStatusBadge(record.status)}
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No attendance records found.
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
     );
   }
+
+  // Calculate statistics from real data
+  const totalStudents = [...new Set(attendanceRecords.map(record => record.userId))].length;
+  const totalRecords = attendanceRecords.length;
+  const presentCount = attendanceRecords.filter(r => r.status === 'present').length;
+  const lateCount = attendanceRecords.filter(r => r.status === 'late').length;
+  const absentCount = attendanceRecords.filter(r => r.status === 'absent').length;
+  const averageAttendance = totalRecords > 0 ? Math.round(((presentCount + lateCount) / totalRecords) * 100) : 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -326,7 +219,6 @@ const Attendance = () => {
       <Tabs defaultValue="overview" className="space-y-6">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="sessions">Class Sessions</TabsTrigger>
           <TabsTrigger value="records">Detailed Records</TabsTrigger>
         </TabsList>
 
@@ -338,7 +230,7 @@ const Attendance = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-purple-100">Total Students</p>
-                    <p className="text-3xl font-bold">25</p>
+                    <p className="text-3xl font-bold">{totalStudents}</p>
                   </div>
                   <Users className="h-12 w-12 text-purple-200" />
                 </div>
@@ -350,7 +242,7 @@ const Attendance = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-green-100">Average Attendance</p>
-                    <p className="text-3xl font-bold">88%</p>
+                    <p className="text-3xl font-bold">{averageAttendance}%</p>
                   </div>
                   <BarChart3 className="h-12 w-12 text-green-200" />
                 </div>
@@ -361,8 +253,8 @@ const Attendance = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-blue-100">Classes This Week</p>
-                    <p className="text-3xl font-bold">3</p>
+                    <p className="text-blue-100">Total Records</p>
+                    <p className="text-3xl font-bold">{totalRecords}</p>
                   </div>
                   <Calendar className="h-12 w-12 text-blue-200" />
                 </div>
@@ -374,7 +266,7 @@ const Attendance = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-orange-100">Late Arrivals</p>
-                    <p className="text-3xl font-bold">3</p>
+                    <p className="text-3xl font-bold">{lateCount}</p>
                   </div>
                   <Clock className="h-12 w-12 text-orange-200" />
                 </div>
@@ -382,92 +274,29 @@ const Attendance = () => {
             </Card>
           </div>
 
-          {/* Recent Sessions Quick View */}
+          {/* Summary by Status */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Class Sessions</CardTitle>
-              <CardDescription>Attendance summary for recent classes</CardDescription>
+              <CardTitle>Attendance Summary</CardTitle>
+              <CardDescription>Overview of all attendance records</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {classSessions.slice(0, 3).map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <h4 className="font-medium">{session.title}</h4>
-                      <p className="text-sm text-gray-600">
-                        {new Date(session.date).toLocaleDateString()} at {session.time}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-6">
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-green-600">{session.presentCount}</div>
-                        <div className="text-xs text-gray-500">Present</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-yellow-600">{session.lateCount}</div>
-                        <div className="text-xs text-gray-500">Late</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-red-600">{session.absentCount}</div>
-                        <div className="text-xs text-gray-500">Absent</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-bold text-blue-600">
-                          {calculateAttendanceRate(session.presentCount, session.totalStudents)}%
-                        </div>
-                        <div className="text-xs text-gray-500">Rate</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600">{presentCount}</div>
+                  <div className="text-sm text-gray-600">Present</div>
+                </div>
+                <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                  <div className="text-3xl font-bold text-yellow-600">{lateCount}</div>
+                  <div className="text-sm text-gray-600">Late</div>
+                </div>
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <div className="text-3xl font-bold text-red-600">{absentCount}</div>
+                  <div className="text-sm text-gray-600">Absent</div>
+                </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="sessions" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {classSessions.map((session) => (
-              <Card key={session.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>{session.title}</span>
-                    <Badge variant="outline">
-                      {calculateAttendanceRate(session.presentCount, session.totalStudents)}% attendance
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    {new Date(session.date).toLocaleDateString()} at {session.time} ({session.duration} min)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <div className="text-center p-3 bg-green-50 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600">{session.presentCount}</div>
-                      <div className="text-sm text-gray-600">Present</div>
-                    </div>
-                    <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                      <div className="text-2xl font-bold text-yellow-600">{session.lateCount}</div>
-                      <div className="text-sm text-gray-600">Late</div>
-                    </div>
-                    <div className="text-center p-3 bg-red-50 rounded-lg">
-                      <div className="text-2xl font-bold text-red-600">{session.absentCount}</div>
-                      <div className="text-sm text-gray-600">Absent</div>
-                    </div>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full" 
-                      style={{ width: `${calculateAttendanceRate(session.presentCount, session.totalStudents)}%` }}
-                    ></div>
-                  </div>
-                  <Button variant="outline" size="sm" className="mt-4 w-full">
-                    View Details
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </TabsContent>
 
         <TabsContent value="records" className="space-y-6">
@@ -493,9 +322,9 @@ const Attendance = () => {
               onChange={(e) => setSelectedClass(e.target.value)}
             >
               <option value="all">All Classes</option>
-              {classSessions.map(session => (
-                <option key={session.id} value={session.id}>
-                  {session.title}
+              {uniqueClasses.map(className => (
+                <option key={className} value={className}>
+                  {className}
                 </option>
               ))}
             </select>
@@ -511,39 +340,35 @@ const Attendance = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {filteredRecords.map((record) => (
-                  <div key={record.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-blue-600">
-                          {record.studentName.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <h4 className="font-medium">{record.studentName}</h4>
-                        <p className="text-sm text-gray-600">{record.studentEmail}</p>
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <p className="font-medium">{record.className}</p>
-                      <p className="text-sm text-gray-600">{new Date(record.date).toLocaleDateString()}</p>
-                    </div>
-                    <div className="text-center">
-                      {record.joinTime && (
-                        <div className="text-sm text-gray-600 mb-1">
-                          {record.joinTime} - {record.leaveTime}
+                {filteredRecords.length > 0 ? (
+                  filteredRecords.map((record, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <span className="text-sm font-bold text-blue-600">
+                            {record.userName.charAt(0)}
+                          </span>
                         </div>
-                      )}
-                      {getStatusBadge(record.status)}
+                        <div>
+                          <h4 className="font-medium">{record.userName}</h4>
+                          <p className="text-sm text-gray-600">{record.className}</p>
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <p className="font-medium">{record.timestamp.toLocaleDateString()}</p>
+                        <p className="text-sm text-gray-600">{record.timestamp.toLocaleTimeString()}</p>
+                      </div>
+                      <div className="text-center">
+                        {getStatusBadge(record.status)}
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No attendance records found matching your criteria.
                   </div>
-                ))}
+                )}
               </div>
-              {filteredRecords.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No attendance records found matching your criteria.
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
