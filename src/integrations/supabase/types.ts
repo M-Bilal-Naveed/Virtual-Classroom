@@ -179,6 +179,7 @@ export type Database = {
           end_time: string
           event_date: string
           id: string
+          image_url: string | null
           start_time: string
           title: string
           updated_at: string
@@ -190,6 +191,7 @@ export type Database = {
           end_time: string
           event_date: string
           id?: string
+          image_url?: string | null
           start_time: string
           title: string
           updated_at?: string
@@ -201,6 +203,7 @@ export type Database = {
           end_time?: string
           event_date?: string
           id?: string
+          image_url?: string | null
           start_time?: string
           title?: string
           updated_at?: string
