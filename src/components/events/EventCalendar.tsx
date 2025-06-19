@@ -24,7 +24,8 @@ const EventCalendar = () => {
     description: '',
     event_date: '',
     start_time: '',
-    end_time: ''
+    end_time: '',
+    image_url: ''
   });
 
   const { data: events = [], isLoading, refetch } = useQuery({
@@ -39,7 +40,9 @@ const EventCalendar = () => {
       setSelectedImage(file);
       const reader = new FileReader();
       reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
+        const imageUrl = e.target?.result as string;
+        setImagePreview(imageUrl);
+        setFormData(prev => ({ ...prev, image_url: imageUrl }));
       };
       reader.readAsDataURL(file);
     }
@@ -49,21 +52,30 @@ const EventCalendar = () => {
     e.preventDefault();
     
     try {
+      const submitData = {
+        title: formData.title,
+        description: formData.description,
+        event_date: formData.event_date,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        image_url: formData.image_url
+      };
+
       if (editingEvent) {
-        await eventService.updateEvent(editingEvent.id, formData);
+        await eventService.updateEvent(editingEvent.id, submitData);
         toast({
           title: "Event updated successfully!",
           description: "The event has been updated and saved to database.",
         });
       } else {
-        await eventService.createEvent(formData);
+        await eventService.createEvent(submitData);
         toast({
           title: "Event created successfully!",
           description: "The event has been saved to database.",
         });
       }
 
-      setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '' });
+      setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '', image_url: '' });
       setSelectedImage(null);
       setImagePreview(null);
       setShowForm(false);
@@ -84,8 +96,12 @@ const EventCalendar = () => {
       description: event.description || '',
       event_date: event.event_date,
       start_time: event.start_time,
-      end_time: event.end_time
+      end_time: event.end_time,
+      image_url: event.image_url || ''
     });
+    if (event.image_url) {
+      setImagePreview(event.image_url);
+    }
     setEditingEvent(event);
     setShowForm(true);
   };
@@ -110,7 +126,7 @@ const EventCalendar = () => {
   const resetForm = () => {
     setShowForm(false);
     setEditingEvent(null);
-    setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '' });
+    setFormData({ title: '', description: '', event_date: '', start_time: '', end_time: '', image_url: '' });
     setSelectedImage(null);
     setImagePreview(null);
   };
@@ -279,6 +295,15 @@ const EventCalendar = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
+                {event.image_url && (
+                  <div className="w-full">
+                    <img 
+                      src={event.image_url} 
+                      alt={event.title}
+                      className="w-full h-40 object-cover rounded-lg"
+                    />
+                  </div>
+                )}
                 {event.description && (
                   <p className="text-sm text-gray-600">{event.description}</p>
                 )}
