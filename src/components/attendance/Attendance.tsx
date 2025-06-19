@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +17,9 @@ import {
   Filter,
   Download,
   BarChart3,
-  FileSpreadsheet
+  FileSpreadsheet,
+  TrendingUp,
+  FileDown
 } from 'lucide-react';
 
 interface AttendanceRecord {
@@ -52,6 +53,21 @@ const Attendance = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedClass, setSelectedClass] = useState('all');
+  const [realAttendanceRecords, setRealAttendanceRecords] = useState([]);
+
+  // Load real attendance data from localStorage
+  useEffect(() => {
+    const loadAttendanceData = async () => {
+      try {
+        const records = await attendanceService.getAllAttendance();
+        setRealAttendanceRecords(records);
+      } catch (error) {
+        console.error('Error loading attendance data:', error);
+      }
+    };
+    
+    loadAttendanceData();
+  }, []);
 
   const [classSessions] = useState<ClassSession[]>([
     {
@@ -172,6 +188,60 @@ const Attendance = () => {
     return matchesSearch && matchesDate && matchesClass;
   });
 
+  const downloadMyAttendanceSheet = async () => {
+    try {
+      const userRecords = await attendanceService.getUserAttendance(user?.id || '');
+      if (userRecords.length === 0) {
+        toast({
+          title: "No Records Found",
+          description: "You don't have any attendance records yet.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      attendanceService.downloadComprehensiveReport(userRecords, `my_attendance_${user?.name?.replace(/\s+/g, '_')}`);
+      
+      toast({
+        title: "Download Complete",
+        description: "Your personal attendance report has been downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "There was an error downloading your attendance sheet.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadClassAttendanceSheet = async () => {
+    try {
+      const allRecords = await attendanceService.getAllAttendance();
+      if (allRecords.length === 0) {
+        toast({
+          title: "No Records Found",
+          description: "No attendance records are available for download.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      attendanceService.downloadComprehensiveReport(allRecords, 'class_attendance_comprehensive');
+      
+      toast({
+        title: "Download Complete",
+        description: "Class attendance report has been downloaded successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "There was an error downloading the attendance sheet.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const exportAttendance = () => {
     // Convert records to the format expected by attendanceService
     const serviceRecords = filteredRecords.map(record => ({
@@ -183,29 +253,11 @@ const Attendance = () => {
       status: record.status as 'present' | 'absent' | 'late'
     }));
 
-    attendanceService.downloadAttendanceExcel(serviceRecords, 'attendance_report');
+    attendanceService.downloadAttendanceExcel(serviceRecords, 'filtered_attendance_report');
 
     toast({
       title: "Export successful",
-      description: "Attendance data has been exported to Excel file.",
-    });
-  };
-
-  const downloadExcelSheet = () => {
-    const serviceRecords = attendanceRecords.map(record => ({
-      userId: record.studentId,
-      userName: record.studentName,
-      classId: record.classId,
-      className: record.className,
-      timestamp: new Date(record.date),
-      status: record.status as 'present' | 'absent' | 'late'
-    }));
-
-    attendanceService.downloadAttendanceExcel(serviceRecords, 'full_attendance_report');
-
-    toast({
-      title: "Download Complete",
-      description: "Complete attendance Excel sheet has been downloaded.",
+      description: "Filtered attendance data has been exported to Excel file.",
     });
   };
 
@@ -278,11 +330,46 @@ const Attendance = () => {
           </Card>
         </div>
 
-        {/* Download Excel Button for Students */}
-        <div className="mb-6 flex justify-end">
-          <Button onClick={downloadExcelSheet} className="bg-green-600 hover:bg-green-700">
+        {/* Enhanced Download Options for Students */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-end">
+          <Button 
+            onClick={downloadMyAttendanceSheet} 
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            <FileDown className="h-4 w-4 mr-2" />
+            Download My Attendance Report
+          </Button>
+          <Button 
+            onClick={downloadClassAttendanceSheet} 
+            className="bg-green-600 hover:bg-green-700"
+          >
             <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Download My Attendance (Excel)
+            Download Detailed Excel Sheet
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => {
+              const userRecords = attendanceRecords
+                .filter(record => record.studentId === user?.id)
+                .map(record => ({
+                  userId: record.studentId,
+                  userName: record.studentName,
+                  classId: record.classId,
+                  className: record.className,
+                  timestamp: new Date(record.date),
+                  status: record.status as 'present' | 'absent' | 'late'
+                }));
+              
+              attendanceService.downloadAttendanceSheet(userRecords, `${user?.name}_attendance`);
+              
+              toast({
+                title: "Download Complete",
+                description: "Your attendance summary has been downloaded.",
+              });
+            }}
+          >
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Quick CSV Export
           </Button>
         </div>
 
@@ -329,9 +416,9 @@ const Attendance = () => {
           <p className="text-gray-600">Track and manage student attendance</p>
         </div>
         <div className="flex space-x-3">
-          <Button onClick={downloadExcelSheet} className="bg-green-600 hover:bg-green-700">
+          <Button onClick={downloadClassAttendanceSheet} className="bg-green-600 hover:bg-green-700">
             <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Download Excel Sheet
+            Download Comprehensive Report
           </Button>
           <Button onClick={exportAttendance} variant="outline">
             <Download className="h-4 w-4 mr-2" />

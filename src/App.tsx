@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navigation from './components/common/Navigation';
+import LandingPage from './components/landing/LandingPage';
 import Login from './components/auth/Login';
 import Dashboard from './components/dashboard/Dashboard';
 import Materials from './components/materials/Materials';
@@ -18,6 +19,7 @@ import EventAnnouncements from './components/announcements/EventAnnouncements';
 import Chat from './components/chat/Chat';
 import Submissions from './components/submissions/Submissions';
 import Profile from './components/profile/Profile';
+import Attendance from './components/attendance/Attendance';
 
 const queryClient = new QueryClient();
 
@@ -59,13 +61,14 @@ const AppContent = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Routes>
+        <Route path="/landing" element={<LandingPage />} />
         <Route 
           path="/login" 
           element={user ? <Navigate to="/dashboard" replace /> : <Login />} 
         />
         <Route 
           path="/" 
-          element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} 
+          element={user ? <Navigate to="/dashboard" replace /> : <LandingPage />} 
         />
         <Route
           path="/dashboard"
@@ -181,6 +184,17 @@ const AppContent = () => {
               <Navigation />
               <main className="pt-16">
                 <Chat />
+              </main>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/attendance"
+          element={
+            <ProtectedRoute>
+              <Navigation />
+              <main className="pt-16">
+                <Attendance />
               </main>
             </ProtectedRoute>
           }
