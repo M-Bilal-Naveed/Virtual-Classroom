@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -113,7 +112,7 @@ const LandingPage = () => {
             Experience the future of education with our comprehensive virtual classroom platform. 
             Connect, learn, and grow with students and teachers from around the world.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <div className="flex justify-center">
             <Button 
               size="lg" 
               onClick={() => navigate('/login')}
@@ -122,13 +121,6 @@ const LandingPage = () => {
               <Play className="mr-2 h-5 w-5" />
               Start Learning Today
               <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-            <Button 
-              size="lg" 
-              variant="outline"
-              className="text-lg px-8 py-4 border-2 border-purple-200 hover:border-purple-300"
-            >
-              Watch Demo
             </Button>
           </div>
         </div>
