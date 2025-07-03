@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { persistentStorage } from '../../utils/persistentStorage';
+
 import { attendanceService } from '../../services/attendanceService';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -35,20 +35,26 @@ const LiveClass = () => {
   const [participants, setParticipants] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load class information
-    const data = persistentStorage.getData();
-    const foundClass = data.scheduledClasses.find(cls => cls.id === classId);
-    
-    if (foundClass) {
-      setClassInfo(foundClass);
+    // Set mock class information for demo
+    if (classId) {
+      const mockClass = {
+        id: classId,
+        title: 'Advanced Mathematics Class',
+        description: 'Live interactive mathematics session',
+        date: new Date().toISOString().split('T')[0],
+        time: '10:00',
+        duration: 60,
+        meetLink: 'https://meet.google.com/demo-link'
+      };
+      setClassInfo(mockClass);
       
       // Automatically mark attendance when joining class
       if (user) {
         attendanceService.markAttendance(
           user.id,
           user.name,
-          foundClass.id,
-          foundClass.title
+          mockClass.id,
+          mockClass.title
         );
         
         toast({
@@ -69,9 +75,6 @@ const LiveClass = () => {
         }
       ]);
     }
-
-    // Load chat messages
-    setChatMessages(data.chatMessages || []);
   }, [classId, user]);
 
   const sendMessage = () => {
@@ -87,9 +90,7 @@ const LiveClass = () => {
         type: 'text'
       };
       
-      const data = persistentStorage.getData();
-      const updatedMessages = [...data.chatMessages, newMessage];
-      persistentStorage.updateChatMessages(updatedMessages);
+      const updatedMessages = [...chatMessages, newMessage];
       setChatMessages(updatedMessages);
       setChatMessage('');
     }

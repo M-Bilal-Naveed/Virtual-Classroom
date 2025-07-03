@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
-import { persistentStorage } from '../../utils/persistentStorage';
+
 import { videoConferenceService } from '../../services/videoConferenceService';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -22,9 +22,9 @@ interface ScheduledClass {
   description: string;
   date: string;
   time: string;
-  duration: string;
+  duration: number;
   meetLink: string;
-  students: string[];
+  students?: string[];
 }
 
 const StudentClassView = () => {
@@ -33,8 +33,30 @@ const StudentClassView = () => {
   const [classes, setClasses] = useState<ScheduledClass[]>([]);
 
   useEffect(() => {
-    const data = persistentStorage.getData();
-    setClasses(data.scheduledClasses || []);
+    // Set mock classes for demo
+    const mockClasses = [
+      {
+        id: '1',
+        title: 'Advanced Mathematics',
+        description: 'Linear Algebra and Calculus',
+        date: new Date().toISOString().split('T')[0],
+        time: '10:00',
+        duration: 60,
+        meetLink: 'https://meet.google.com/demo-math',
+        students: ['student1', 'student2']
+      },
+      {
+        id: '2',
+        title: 'Computer Science',
+        description: 'Data Structures and Algorithms',
+        date: new Date().toISOString().split('T')[0],
+        time: '14:00',
+        duration: 90,
+        meetLink: 'https://meet.google.com/demo-cs',
+        students: ['student1', 'student2', 'student3']
+      }
+    ];
+    setClasses(mockClasses);
   }, []);
 
   const joinClass = (classItem: ScheduledClass) => {
