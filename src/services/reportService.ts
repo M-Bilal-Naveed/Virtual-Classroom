@@ -115,15 +115,32 @@ class ReportService {
       throw new Error(error.message);
     }
 
-    // Generate downloadable content
-    const reportContent = JSON.stringify(report.report_data, null, 2);
-    const blob = new Blob([reportContent], { type: 'application/json' });
+    // Generate Excel-style CSV content
+    const reportData = report.report_data as any;
+    const classes = reportData.classes || [];
+    
+    let csvContent = 'Report Title:,' + report.title + '\n';
+    csvContent += 'Week Period:,' + report.week_start_date + ' to ' + report.week_end_date + '\n';
+    csvContent += 'Generated:,' + new Date(report.generated_at).toLocaleString() + '\n\n';
+    csvContent += 'Class ID,Title,Date,Time,Duration (min),Instructor\n';
+    
+    classes.forEach((cls: any) => {
+      csvContent += `${cls.id},"${cls.title}","${cls.date}","${cls.time}",${cls.duration},"${cls.instructor}"\n`;
+    });
+    
+    csvContent += '\nSummary\n';
+    csvContent += 'Total Classes:,' + (reportData.totalClasses || 0) + '\n';
+    csvContent += 'Total Duration (min):,' + (reportData.summary?.totalDuration || 0) + '\n';
+    csvContent += 'Unique Instructors:,' + (reportData.summary?.uniqueInstructors || 0) + '\n';
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
     // Create download link
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${report.title.replace(/[^a-z0-9]/gi, '_')}.json`;
+    link.download = `${report.title.replace(/[^a-z0-9]/gi, '_')}.csv`;
+    link.setAttribute('target', '_self');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

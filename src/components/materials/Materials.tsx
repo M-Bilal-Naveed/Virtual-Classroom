@@ -145,13 +145,19 @@ const Materials = () => {
     try {
       await materialService.incrementDownload(material.id);
       
+      // Create a more secure download approach
+      const response = await fetch(material.file_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
-      link.href = material.file_url;
+      link.href = url;
       link.download = material.file_name;
-      link.target = '_blank';
+      link.setAttribute('rel', 'noopener noreferrer');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
       
       toast({
         title: "Download started",
